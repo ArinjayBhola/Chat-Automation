@@ -112,6 +112,7 @@ export function ChatInterface({
             messages={messages}
             onApprove={(id, fields) => resolveApproval(id, "approved", fields)}
             onSkip={(id) => resolveApproval(id, "skipped")}
+            onSuggestion={send}
           />
           <MessageInput disabled={isSending} onSend={send} />
         </main>

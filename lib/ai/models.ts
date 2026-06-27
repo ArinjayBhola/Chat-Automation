@@ -3,7 +3,8 @@
  *
  * A model is "available" when its provider's credentials are present in the
  * environment. The UI shows availability so users can pick a model the server
- * can actually run; unavailable picks fall back to demo (mock) responses.
+ * can actually run; if none is configured the chat route asks the user to add
+ * a provider key.
  *
  * Open-source models are served through an OpenAI-COMPATIBLE cloud gateway
  * (OpenRouter / Groq / Together / Fireworks, etc.) — never local/Ollama, since
@@ -127,7 +128,7 @@ export function getModelInfo(id: string): ModelInfo | undefined {
 
 export const DEFAULT_MODEL_ID = process.env.DEFAULT_MODEL || "claude-opus-4-8";
 
-/** Whether any provider has credentials; if false the agent runs in mock mode. */
+/** Whether any provider has credentials; if false the agent can't run. */
 export function anyProviderConfigured(): boolean {
   return (
     providerConfigured("anthropic") ||

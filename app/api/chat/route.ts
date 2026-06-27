@@ -12,7 +12,7 @@ import {
   insertMessage,
   listChats,
 } from "@/lib/db-queries";
-import { planFromMessage } from "@/lib/ai/mock-agent";
+import { anyProviderConfigured } from "@/lib/ai/models";
 import { createAgentStream } from "@/lib/agent/agent";
 import { toolNameToToolId } from "@/lib/agent/tools";
 import { encodeEvent, type AgentEvent } from "@/lib/agent/events";
@@ -133,22 +133,24 @@ export async function POST(req: Request) {
       };
 
       try {
-        const agent = session.user.isDemo
-          ? null
-          : await createAgentStream({
-              ctx: { userId, connected },
-              modelId: modelId ?? "claude-opus-4-8",
-              messages,
-            });
+        const agent = await createAgentStream({
+          ctx: { userId, connected },
+          modelId: modelId ?? "claude-opus-4-8",
+          messages,
+        });
 
         if (!agent) {
-          await runMock(send, acc, message);
+          send({
+            type: "text",
+            value: anyProviderConfigured()
+              ? "The selected model isn't available right now. Pick another model from the sidebar."
+              : "No AI model is configured on this server yet. Add a provider API key (for example `ANTHROPIC_API_KEY`) to start chatting.",
+          });
         } else {
           await runReal(send, acc, agent.result.fullStream);
-        }
-
-        if (persist) {
-          await persistTurn(send, { userId, chatId, message, acc });
+          if (persist) {
+            await persistTurn(send, { userId, chatId, message, acc });
+          }
         }
       } catch (e) {
         send({
@@ -340,50 +342,4 @@ function humanizeTool(name: string, input: unknown): string {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + "…" : s;
-}
-
-// ---------------------------------------------------------------------------
-// Mock agent → events (demo / no provider)
-// ---------------------------------------------------------------------------
-const ACTION_OP: Record<string, ApprovalOp> = {
-  send_email: "gmail.send",
-  create_event: "calendar.create",
-  update_doc: "docs.create",
-  create_notion_page: "notion.create",
-};
-
-async function runMock(
-  send: (e: AgentEvent) => void,
-  acc: Accumulator,
-  message: string,
-) {
-  const plan = planFromMessage(message);
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-  for (const t of plan.toolsUsed) acc.tools.add(t);
-  if (plan.toolsUsed.length > 0) send({ type: "tools", tools: plan.toolsUsed });
-
-  for (const step of plan.steps) {
-    send({ type: "step", step: { ...step, status: "in_progress" } });
-    await sleep(300);
-    acc.steps.set(step.id, step);
-    send({ type: "step", step });
-  }
-
-  const words = plan.content.split(" ");
-  for (let i = 0; i < words.length; i++) {
-    const value = words[i] + (i < words.length - 1 ? " " : "");
-    acc.content += value;
-    send({ type: "text", value });
-    if (i % 4 === 0) await sleep(20);
-  }
-
-  if (plan.approval) {
-    acc.approvals.push({
-      approval: plan.approval,
-      op: ACTION_OP[plan.approval.actionType] ?? null,
-      args: Object.fromEntries(plan.approval.fields.map((f) => [f.key, f.value])),
-    });
-    send({ type: "approval", approval: plan.approval });
-  }
 }

@@ -3,9 +3,10 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "auto-chat — AI assistant for Gmail, Drive, Docs, Calendar & Notion",
+  title: "Relay - AI assistant for Gmail, Drive, Docs, Calendar & Notion",
   description:
-    "Issue plain-English commands and let an AI agent orchestrate your tools, with approval gates for anything that matters.",
+    "Issue plain-English commands and let Relay orchestrate your tools, with approval gates for anything that matters.",
+  applicationName: "Relay",
 };
 
 export default function RootLayout({

@@ -2,22 +2,24 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { Bot, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { BrandBadge } from "@/components/brand/logo";
 
 export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
   const [loading, setLoading] = useState<"google" | "demo" | null>(null);
 
   return (
-    <div className="w-full max-w-sm rounded-xl border bg-card p-8 shadow-sm">
+    <div className="w-full max-w-sm rounded-2xl border bg-card p-8 shadow-sm">
       <div className="mb-6 flex flex-col items-center text-center">
-        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Bot className="h-6 w-6" />
-        </div>
-        <h1 className="text-xl font-semibold">Welcome to auto-chat</h1>
+        <BrandBadge className="mb-3 h-12 w-12" />
+        <h1 className="text-xl font-semibold tracking-tight">
+          Welcome to Relay
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your AI assistant for Gmail, Drive, Docs, Calendar &amp; Notion.
+          One assistant for Gmail, Drive, Docs, Calendar &amp; Notion — it acts
+          only with your approval.
         </p>
       </div>
 

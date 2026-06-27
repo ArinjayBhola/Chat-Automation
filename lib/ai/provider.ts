@@ -12,7 +12,8 @@ import {
  *
  * Providers are imported lazily so the app builds/runs even if a given
  * provider package or its credentials are absent. Returns `null` when the
- * requested model's provider isn't configured — callers then use mock mode.
+ * requested model's provider isn't configured — the chat route then tells the
+ * user to configure a provider key.
  */
 export async function resolveModel(
   modelId: string = DEFAULT_MODEL_ID,

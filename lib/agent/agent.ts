@@ -12,7 +12,7 @@ function systemPrompt(connected: ToolId[]): string {
       ? connected.map((t) => `- ${TOOL_META[t].name}`).join("\n")
       : "(none connected yet)";
 
-  return `You are auto-chat, an autonomous assistant that orchestrates a user's tools to fulfil plain-English requests.
+  return `You are Relay, an autonomous assistant that orchestrates a user's tools to fulfil plain-English requests.
 
 Connected tools you may use this session:
 ${toolList}

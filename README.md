@@ -1,38 +1,38 @@
-# auto-chat
+<h1 align="center">Relay</h1>
 
-An AI assistant that takes plain-English commands and orchestrates them across
-**Gmail, Google Drive, Google Docs, Google Calendar, and Notion** — breaking
-requests into steps, picking only the relevant tools, and asking for approval
-before anything with real consequences (sending email, creating events, editing
-docs/pages).
+<p align="center">
+  <strong>One AI assistant that relays your plain-English commands across
+  Gmail, Drive, Docs, Calendar &amp; Notion — and hands off the consequential
+  actions only when you approve.</strong>
+</p>
 
-> **Status:** all five build phases complete. Auth + demo mode, the streaming
-> multi-provider agent, real tool execution, the approval workflow with
-> execute-on-approve + audit trail, chat history, hardening, Docker, and tests
-> are in place. Verified by `npm run test`, `npm run typecheck`, and
-> `npm run build` (all green). A live model/DB smoke test is the last mile.
+Relay breaks a request into steps, picks only the tools it needs, passes data
+between them, and pauses for your approval before anything with real
+consequences (sending email, creating events, editing docs/pages).
 
 ## ✨ Highlights
 
-- **Demo mode** — runs with **zero external credentials**. Click _Try Demo_ and
-  exercise the entire UI (streamed steps + approval gate) with mock data.
+- **Real orchestration, no mock data** — a streaming agent plans steps, calls
+  only the connected tools, passes data between them, and continues past
+  failures. Responses come from a real model and your real tools.
 - **Multi-provider AI** — Claude, OpenAI, Gemini, and open-source models (via an
   OpenAI-compatible cloud gateway like OpenRouter/Groq/Together). Pick the model
   in the sidebar. No local/Ollama dependency — built for cloud deploy.
-- **Real orchestration** — a streaming agent plans steps, calls only the
-  connected tools, passes data between steps, and continues past failures.
 - **Approval gates** — sensitive actions pause for approval with editable fields
   and a 30-second auto-skip; approving actually performs the action.
 - **Persistence + audit** — chats, messages, approvals, and an append-only audit
   log in Postgres (Drizzle). OAuth tokens encrypted at rest (AES-256-GCM).
+- **Try-it login** — a one-click demo account lets you explore the UI without
+  Google; with an AI key set it chats for real (no tools until you connect them).
 
-## 🚀 Quick start (demo mode, no credentials)
+## 🚀 Quick start
 
 ```bash
 npm install
-cp .env.example .env.local   # leave everything blank for demo mode
+cp .env.example .env.local
+# To actually chat, add at least one provider key (e.g. ANTHROPIC_API_KEY).
 npm run dev
-# open http://localhost:3000  →  click "Try Demo"
+# open http://localhost:3000  →  sign in with Google, or click "Try Demo"
 ```
 
 ## 🔌 Enabling real integrations
@@ -43,13 +43,13 @@ list and how to obtain each):
 | Capability             | Variables                                                        |
 | ---------------------- | ---------------------------------------------------------------- |
 | Google login + tools   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SECRET`        |
-| Persistence (Postgres) | `DATABASE_URL` (Neon pooled string, or any Postgres)            |
-| Token encryption       | `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`)              |
-| Claude                 | `ANTHROPIC_API_KEY`                                             |
-| OpenAI                 | `OPENAI_API_KEY`                                                |
-| Gemini                 | `GOOGLE_GENERATIVE_AI_API_KEY`                                  |
-| Open-source models     | `OPENSOURCE_BASE_URL`, `OPENSOURCE_API_KEY`, `OPENSOURCE_MODELS`|
-| Notion                 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`                      |
+| Persistence (Postgres) | `DATABASE_URL` (Neon pooled string, or any Postgres)             |
+| Token encryption       | `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`)               |
+| Claude                 | `ANTHROPIC_API_KEY`                                              |
+| OpenAI                 | `OPENAI_API_KEY`                                                 |
+| Gemini                 | `GOOGLE_GENERATIVE_AI_API_KEY`                                   |
+| Open-source models     | `OPENSOURCE_BASE_URL`, `OPENSOURCE_API_KEY`, `OPENSOURCE_MODELS` |
+| Notion                 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`                       |
 
 Google needs several authorized redirect URIs (login + one per tool) and the
 Gmail/Drive/Docs/Calendar APIs enabled — see the comments in `.env.example`.
@@ -91,7 +91,7 @@ Docker Postgres and against Neon/Supabase/RDS in production.
 ## 🧪 Quality
 
 ```bash
-npm run test        # vitest unit tests (crypto, sanitize, planner, ops)
+npm run test        # vitest unit tests (crypto, sanitize, ops)
 npm run typecheck   # tsc --noEmit
 npm run build       # next build (standalone)
 ```
@@ -120,7 +120,8 @@ lib/
   crypto.ts / rate-limit.ts / sanitize.ts
   tools/                     # OAuth flows + Google/Notion API wrappers + token mgmt
   agent/                     # agent.ts, tools.ts, execute.ts, approvals.ts, events.ts, ops.ts
-  ai/                        # model registry, provider resolver, mock planner
+  ai/                        # model registry + provider resolver
+components/brand/logo.tsx   # Relay mark + wordmark (app/icon.svg = favicon)
 ```
 
 ## 🔐 Security notes

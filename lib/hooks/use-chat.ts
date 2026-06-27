@@ -13,9 +13,10 @@ const WELCOME: ClientMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "👋 Hi! I'm your AI assistant. Ask me to check emails, organize files, " +
-    "summarize your week, or draft a message — I'll plan the steps, use the " +
-    "right tools, and ask before doing anything with real consequences.",
+    "👋 Hi, I'm Relay. Connect your tools in the sidebar, then ask me to check " +
+    "email, organise files, summarise your week, or draft a message. I plan the " +
+    "steps, use only the tools I need, and always ask before doing anything with " +
+    "real consequences.",
   createdAt: new Date().toISOString(),
   toolsUsed: [],
   steps: [],

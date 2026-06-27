@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Check, Copy, User as UserIcon } from "lucide-react";
+import { Check, Copy, User as UserIcon } from "lucide-react";
+import { BrandMark } from "@/components/brand/logo";
 import { cn, formatTime } from "@/lib/utils";
 import { TOOL_META } from "@/lib/types";
 import type { ApprovalField, ClientMessage } from "@/lib/types";
@@ -40,7 +41,11 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
             : "bg-muted text-foreground",
         )}
       >
-        {isUser ? <UserIcon className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+        {isUser ? (
+          <UserIcon className="h-4 w-4" />
+        ) : (
+          <BrandMark className="h-5 w-5 text-primary" />
+        )}
       </div>
 
       <div className={cn("min-w-0 max-w-[85%]", isUser && "items-end")}>

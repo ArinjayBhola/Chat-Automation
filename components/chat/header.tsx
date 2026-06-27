@@ -2,8 +2,9 @@
 
 import { signOut } from "next-auth/react";
 import Image from "next/image";
-import { Bot, LogOut, Menu, Plus } from "lucide-react";
+import { LogOut, Menu, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type Props = {
@@ -26,10 +27,7 @@ export function Header({ user, onToggleSidebar, onNewChat }: Props) {
           <Menu className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Bot className="h-4 w-4" />
-          </div>
-          <span className="font-semibold">auto-chat</span>
+          <Logo badgeClassName="h-7 w-7" />
           {user.isDemo && (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
               Demo

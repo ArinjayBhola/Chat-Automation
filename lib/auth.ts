@@ -57,7 +57,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return {
           id: "demo-user",
           name: "Demo User",
-          email: "demo@auto-chat.app",
+          email: "demo@relay.app",
           image: `https://api.dicebear.com/9.x/initials/svg?seed=Demo%20User`,
           isDemo: true,
         } as unknown as { id: string };
