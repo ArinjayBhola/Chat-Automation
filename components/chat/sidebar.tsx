@@ -5,6 +5,7 @@ import { Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ToolConnections } from "./tool-connections";
 import { ModelPicker } from "./model-picker";
+import { ChatHistory, type ChatListItem } from "./chat-history";
 import type { ModelChoice } from "@/lib/ai/models";
 
 type Props = {
@@ -13,9 +14,25 @@ type Props = {
   models: ModelChoice[];
   modelId: string;
   onModelChange: (id: string) => void;
+  chats: ChatListItem[];
+  activeChatId?: string;
+  onSelectChat: (id: string) => void;
+  onDeleteChat: (id: string) => void;
+  onNewChat: () => void;
 };
 
-export function Sidebar({ open, user, models, modelId, onModelChange }: Props) {
+export function Sidebar({
+  open,
+  user,
+  models,
+  modelId,
+  onModelChange,
+  chats,
+  activeChatId,
+  onSelectChat,
+  onDeleteChat,
+  onNewChat,
+}: Props) {
   return (
     <aside
       className={cn(
@@ -48,6 +65,16 @@ export function Sidebar({ open, user, models, modelId, onModelChange }: Props) {
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto scrollbar-thin p-3">
+        {!user.isDemo && (
+          <ChatHistory
+            chats={chats}
+            activeChatId={activeChatId}
+            onSelect={onSelectChat}
+            onDelete={onDeleteChat}
+            onNew={onNewChat}
+          />
+        )}
+
         <ToolConnections isDemo={user.isDemo} />
 
         <div>

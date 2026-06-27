@@ -214,6 +214,24 @@ export async function ensureChat(
   return chat?.id ?? null;
 }
 
+export async function getChatForUser(chatId: string, userId: string) {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(chats)
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function archiveChat(chatId: string, userId: string) {
+  if (!isDbEnabled || !db) return;
+  await db
+    .update(chats)
+    .set({ archivedAt: new Date() })
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)));
+}
+
 export async function getChatMessages(chatId: string) {
   if (!isDbEnabled || !db) return [];
   return db
@@ -221,6 +239,23 @@ export async function getChatMessages(chatId: string) {
     .from(messages)
     .where(eq(messages.chatId, chatId))
     .orderBy(messages.createdAt);
+}
+
+export async function getPendingApprovalsForChat(
+  chatId: string,
+  userId: string,
+) {
+  if (!isDbEnabled || !db) return [];
+  return db
+    .select()
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.chatId, chatId),
+        eq(approvals.userId, userId),
+        eq(approvals.status, "pending"),
+      ),
+    );
 }
 
 export async function insertMessage(message: NewMessage) {

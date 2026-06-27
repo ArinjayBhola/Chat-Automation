@@ -1,0 +1,51 @@
+# Local full-stack: Postgres + the app. Reads secrets from your host `.env`
+# (or a `.env` next to this file) via ${VAR} substitution.
+#
+#   docker compose up --build
+#   # first run: create tables (drizzle-kit isn't in the runtime image):
+#   #   DATABASE_URL=postgresql://postgres:password@localhost:5432/chat_automation npm run db:push
+#
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: chat_automation
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      AUTH_SECRET: ${AUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/chat_automation
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+      OPENSOURCE_BASE_URL: ${OPENSOURCE_BASE_URL}
+      OPENSOURCE_API_KEY: ${OPENSOURCE_API_KEY}
+      OPENSOURCE_MODELS: ${OPENSOURCE_MODELS}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-claude-opus-4-8}
+      NOTION_CLIENT_ID: ${NOTION_CLIENT_ID}
+      NOTION_CLIENT_SECRET: ${NOTION_CLIENT_SECRET}
+
+volumes:
+  postgres_data:

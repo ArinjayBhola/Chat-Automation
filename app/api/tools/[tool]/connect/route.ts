@@ -5,6 +5,7 @@ import { isToolId, TOOL_PROVIDER, toolProviderConfigured } from "@/lib/tools/reg
 import { buildGoogleAuthUrl } from "@/lib/tools/oauth-google";
 import { buildNotionAuthUrl } from "@/lib/tools/oauth-notion";
 import { getOrigin, newState, stateCookieName } from "@/lib/tools/oauth-state";
+import { limiterKey, rateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/tools/[tool]/connect
@@ -18,6 +19,14 @@ export async function POST(
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rl = rateLimit(limiterKey("connect", session.user.id), 10, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many connection attempts. Please wait a moment." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
   }
 
   const { tool } = await ctx.params;

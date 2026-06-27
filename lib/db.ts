@@ -1,20 +1,34 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
 
 /**
- * Database connection.
+ * Database connection (postgres-js driver).
  *
- * Demo-first design: if `DATABASE_URL` is not set, `db` is `null` and the app
- * transparently falls back to an in-memory store (see lib/demo-store.ts).
- * Call sites should use `requireDb()` only on paths that truly need Postgres,
- * or branch on `isDbEnabled`.
+ * Works with ANY Postgres — Neon (use the pooled connection string), Supabase,
+ * RDS, or a local/Docker Postgres — so the same code runs in dev, Docker, and
+ * serverless. Demo-first: if `DATABASE_URL` is unset, `db` is `null` and the
+ * app falls back to in-memory behavior (queries return empty/echo values).
+ *
+ * A single client is cached on `globalThis` to survive Next.js HMR and to keep
+ * the connection count low in serverless environments.
  */
 export const isDbEnabled = Boolean(process.env.DATABASE_URL);
 
-export const db = isDbEnabled
-  ? drizzle(neon(process.env.DATABASE_URL!), { schema })
+const globalForDb = globalThis as unknown as {
+  __pgClient?: ReturnType<typeof postgres>;
+};
+
+const client = isDbEnabled
+  ? (globalForDb.__pgClient ??= postgres(process.env.DATABASE_URL!, {
+      max: Number(process.env.DB_POOL_MAX ?? 5),
+      // Neon/serverless connection strings already include sslmode; postgres-js
+      // honors it. `prepare: false` plays nicely with transaction poolers.
+      prepare: false,
+    }))
   : null;
+
+export const db = client ? drizzle(client, { schema }) : null;
 
 export type Database = NonNullable<typeof db>;
 

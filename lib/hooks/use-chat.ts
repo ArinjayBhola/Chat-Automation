@@ -25,7 +25,12 @@ export function useChat(initialModelId: string, isDemo: boolean) {
   const [messages, setMessages] = useState<ClientMessage[]>([WELCOME]);
   const [isSending, setIsSending] = useState(false);
   const [modelId, setModelId] = useState(initialModelId);
+  const [chatId, setChatIdState] = useState<string | undefined>(undefined);
   const chatIdRef = useRef<string | undefined>(undefined);
+  const setChatId = useCallback((id: string | undefined) => {
+    chatIdRef.current = id;
+    setChatIdState(id);
+  }, []);
   // Mirror messages so send() can read history without being recreated.
   const messagesRef = useRef<ClientMessage[]>([WELCOME]);
   messagesRef.current = messages;
@@ -67,7 +72,7 @@ export function useChat(initialModelId: string, isDemo: boolean) {
           patchMessage(id, (m) => ({ ...m, toolsUsed: event.tools }));
           break;
         case "meta":
-          chatIdRef.current = event.chatId;
+          if (chatIdRef.current !== event.chatId) setChatId(event.chatId);
           break;
         case "error":
           patchMessage(id, (m) => ({
@@ -251,17 +256,34 @@ export function useChat(initialModelId: string, isDemo: boolean) {
   );
 
   const reset = useCallback(() => {
-    chatIdRef.current = undefined;
+    setChatId(undefined);
     setMessages([WELCOME]);
-  }, []);
+  }, [setChatId]);
+
+  const loadChat = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/chat/${id}`);
+        if (!res.ok) return;
+        const data: { messages: ClientMessage[] } = await res.json();
+        setChatId(id);
+        setMessages(data.messages.length ? data.messages : [WELCOME]);
+      } catch {
+        /* ignore load failure */
+      }
+    },
+    [setChatId],
+  );
 
   return {
     messages,
     isSending,
     modelId,
+    chatId,
     setModelId,
     send,
     resolveApproval,
     reset,
+    loadChat,
   };
 }

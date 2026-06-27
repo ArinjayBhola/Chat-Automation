@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { decideApproval, fieldsToArgs } from "@/lib/agent/approvals";
+import { limiterKey, rateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/approvals/[id]/approve — execute the action (with any edited
@@ -14,6 +15,14 @@ export async function POST(
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const rl = rateLimit(limiterKey("approve", session.user.id), 30, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { ok: false, error: "Too many actions. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
+
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
   const editedArgs = fieldsToArgs(body?.fields);

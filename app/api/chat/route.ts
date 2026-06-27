@@ -10,16 +10,40 @@ import {
   getToolConnections,
   insertAuditLog,
   insertMessage,
+  listChats,
 } from "@/lib/db-queries";
 import { planFromMessage } from "@/lib/ai/mock-agent";
 import { createAgentStream } from "@/lib/agent/agent";
 import { toolNameToToolId } from "@/lib/agent/tools";
 import { encodeEvent, type AgentEvent } from "@/lib/agent/events";
 import { OP_KEY, type ApprovalOp } from "@/lib/agent/ops";
+import { limiterKey, rateLimit } from "@/lib/rate-limit";
+import { sanitizeMessage } from "@/lib/sanitize";
 import { uid } from "@/lib/utils";
 import type { ActionType, ClientApproval, Step, ToolId } from "@/lib/types";
 
 export const maxDuration = 60;
+
+/**
+ * GET /api/chat — list the current user's (non-archived) chats for the sidebar.
+ */
+export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (session.user.isDemo) {
+    return NextResponse.json({ chats: [] });
+  }
+  const rows = await listChats(session.user.id);
+  return NextResponse.json({
+    chats: rows.map((c) => ({
+      id: c.id,
+      title: c.title,
+      updatedAt: c.updatedAt,
+    })),
+  });
+}
 
 const historyItem = z.object({
   role: z.enum(["user", "assistant"]),
@@ -65,8 +89,21 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { message, modelId, history } = parsed.data;
+  const { modelId, history } = parsed.data;
   const chatId = parsed.data.chatId;
+  const message = sanitizeMessage(parsed.data.message);
+  if (!message) {
+    return NextResponse.json({ error: "Empty message" }, { status: 400 });
+  }
+
+  // Rate limit: 20 messages / minute / user.
+  const rl = rateLimit(limiterKey("chat", session.user.id), 20, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "You're sending messages too quickly. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const connected = new Set<ToolId>();
   if (!session.user.isDemo) {
