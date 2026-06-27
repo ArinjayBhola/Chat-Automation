@@ -15,11 +15,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let connectedSet = new Set<ToolId>();
-  if (!session.user.isDemo) {
-    const connections = await getToolConnections(session.user.id);
-    connectedSet = new Set(connections.map((c) => c.tool as ToolId));
-  }
+  const connections = await getToolConnections(session.user.id);
+  const connectedSet = new Set(connections.map((c) => c.tool as ToolId));
 
   const tools: ToolStatus[] = ALL_TOOLS.map((id) => ({
     id,

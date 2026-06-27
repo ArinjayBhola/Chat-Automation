@@ -2,72 +2,76 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import {
+  Calendar,
+  FileText,
+  HardDrive,
+  Mail,
+  StickyNote,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { BrandBadge } from "@/components/brand/logo";
 
+const TOOLS: { icon: LucideIcon; label: string }[] = [
+  { icon: Mail, label: "Gmail" },
+  { icon: HardDrive, label: "Drive" },
+  { icon: FileText, label: "Docs" },
+  { icon: Calendar, label: "Calendar" },
+  { icon: StickyNote, label: "Notion" },
+];
+
 export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
-  const [loading, setLoading] = useState<"google" | "demo" | null>(null);
+  const [loading, setLoading] = useState(false);
 
   return (
     <div className="w-full max-w-sm rounded-2xl border bg-card p-8 shadow-sm">
       <div className="mb-6 flex flex-col items-center text-center">
         <BrandBadge className="mb-3 h-12 w-12" />
         <h1 className="text-xl font-semibold tracking-tight">
-          Welcome to Relay
+          Sign in to Relay
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          One assistant for Gmail, Drive, Docs, Calendar &amp; Notion — it acts
-          only with your approval.
+          One assistant for your tools — it acts only with your approval.
         </p>
       </div>
 
-      <div className="space-y-3">
-        <Button
-          className="w-full"
-          size="lg"
-          disabled={!googleEnabled || loading !== null}
-          onClick={() => {
-            setLoading("google");
-            signIn("google", { callbackUrl: "/chat" });
-          }}
-        >
-          {loading === "google" ? (
-            <Spinner />
-          ) : (
-            <GoogleGlyph />
-          )}
-          Continue with Google
-        </Button>
-
-        <div className="relative py-1 text-center">
-          <span className="bg-card px-2 text-xs uppercase tracking-wide text-muted-foreground">
-            or
+      <div className="mb-6 flex items-center justify-center gap-3">
+        {TOOLS.map(({ icon: Icon, label }) => (
+          <span
+            key={label}
+            title={label}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-muted-foreground"
+          >
+            <Icon className="h-4 w-4" />
           </span>
-          <div className="absolute inset-x-0 top-1/2 -z-10 h-px bg-border" />
-        </div>
-
-        <Button
-          variant="outline"
-          className="w-full"
-          size="lg"
-          disabled={loading !== null}
-          onClick={() => {
-            setLoading("demo");
-            signIn("demo", { callbackUrl: "/chat" });
-          }}
-        >
-          {loading === "demo" ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-          Try Demo
-        </Button>
+        ))}
       </div>
 
-      {!googleEnabled && (
+      <Button
+        className="w-full"
+        size="lg"
+        disabled={!googleEnabled || loading}
+        onClick={() => {
+          setLoading(true);
+          signIn("google", { callbackUrl: "/chat" });
+        }}
+      >
+        {loading ? <Spinner /> : <GoogleGlyph />}
+        Continue with Google
+      </Button>
+
+      {!googleEnabled ? (
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          Google sign-in isn&apos;t configured on this server. Use{" "}
-          <span className="font-medium">Try Demo</span> to explore the full UI
-          with mock data.
+          Google sign-in isn&apos;t configured on this server. Set
+          <span className="font-medium"> GOOGLE_CLIENT_ID</span> and
+          <span className="font-medium"> GOOGLE_CLIENT_SECRET</span> to enable
+          it.
+        </p>
+      ) : (
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          By continuing you agree to connect the Google account you choose.
         </p>
       )}
     </div>

@@ -13,7 +13,6 @@ type SessionUser = {
   name?: string | null;
   email?: string | null;
   image?: string | null;
-  isDemo: boolean;
 };
 
 export function ChatInterface({
@@ -37,10 +36,9 @@ export function ChatInterface({
     resolveApproval,
     reset,
     loadChat,
-  } = useChat(defaultModelId, user.isDemo);
+  } = useChat(defaultModelId);
 
   const refreshChats = useCallback(async () => {
-    if (user.isDemo) return;
     try {
       const res = await fetch("/api/chat");
       if (!res.ok) return;
@@ -49,7 +47,7 @@ export function ChatInterface({
     } catch {
       /* ignore */
     }
-  }, [user.isDemo]);
+  }, []);
 
   // Load list on mount and refresh whenever a (new) chat becomes active.
   useEffect(() => {

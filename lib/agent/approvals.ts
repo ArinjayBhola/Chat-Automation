@@ -44,7 +44,7 @@ export async function decideApproval(
 ): Promise<DecisionResult> {
   const row = await getApprovalById(id, userId);
   if (!row) {
-    // No persisted row (demo / no-DB / already gone) — let caller fall back.
+    // No persisted row (no DB, or already gone) — let the caller fall back.
     return { ok: false, status: 404, error: "Approval not found." };
   }
   if (row.status !== "pending") {

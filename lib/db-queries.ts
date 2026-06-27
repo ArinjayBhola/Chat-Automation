@@ -16,9 +16,9 @@ import {
 } from "./schema";
 
 /**
- * Thin query layer over Drizzle. Every function is demo-safe: when no database
- * is configured it returns a sensible empty/echo value instead of throwing, so
- * the app remains fully usable in demo mode.
+ * Thin query layer over Drizzle. Every function is null-safe: when no database
+ * is configured it returns a sensible empty value instead of throwing, so the
+ * app can boot before the database is provisioned.
  */
 
 // ---- users ----------------------------------------------------------------

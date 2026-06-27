@@ -20,10 +20,6 @@ export async function POST(
     return NextResponse.json({ error: "Unknown tool" }, { status: 404 });
   }
 
-  if (session.user.isDemo) {
-    return NextResponse.json({ ok: true });
-  }
-
   await deleteToolConnection(session.user.id, tool);
   return NextResponse.json({ ok: true });
 }

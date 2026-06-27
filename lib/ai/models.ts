@@ -6,12 +6,18 @@
  * can actually run; if none is configured the chat route asks the user to add
  * a provider key.
  *
- * Open-source models are served through an OpenAI-COMPATIBLE cloud gateway
- * (OpenRouter / Groq / Together / Fireworks, etc.) — never local/Ollama, since
- * this app is meant to be deployed to the cloud.
+ * Open-source / open-weight models are served through OpenAI-COMPATIBLE cloud
+ * gateways (OpenRouter, Groq, or a custom gateway) — never local/Ollama, since
+ * this app is built to be deployed to the cloud.
  */
 
-export type ProviderId = "anthropic" | "openai" | "google" | "opensource";
+export type ProviderId =
+  | "anthropic"
+  | "openai"
+  | "google"
+  | "openrouter"
+  | "groq"
+  | "opensource";
 
 export type ModelInfo = {
   id: string; // stable id used across the app + persisted with messages
@@ -75,9 +81,81 @@ const STATIC_MODELS: ModelInfo[] = [
     modelName: "gemini-1.5-pro",
     description: "Large-context Google model.",
   },
+  // ---- OpenRouter (open models, OpenAI-compatible) -------------------------
+  {
+    id: "or/hermes-3-405b",
+    label: "Hermes 3 405B",
+    provider: "openrouter",
+    modelName: "nousresearch/hermes-3-llama-3.1-405b",
+    description: "Nous Research Hermes 3 — strong agentic/instruction model.",
+  },
+  {
+    id: "or/hermes-3-70b",
+    label: "Hermes 3 70B",
+    provider: "openrouter",
+    modelName: "nousresearch/hermes-3-llama-3.1-70b",
+    description: "Lighter Hermes 3 for faster agent runs.",
+  },
+  {
+    id: "or/llama-3.3-70b",
+    label: "Llama 3.3 70B",
+    provider: "openrouter",
+    modelName: "meta-llama/llama-3.3-70b-instruct",
+    description: "Meta Llama 3.3 70B Instruct.",
+  },
+  {
+    id: "or/qwen-2.5-72b",
+    label: "Qwen 2.5 72B",
+    provider: "openrouter",
+    modelName: "qwen/qwen-2.5-72b-instruct",
+    description: "Alibaba Qwen 2.5 72B — strong tool use.",
+  },
+  {
+    id: "or/deepseek-v3",
+    label: "DeepSeek V3",
+    provider: "openrouter",
+    modelName: "deepseek/deepseek-chat",
+    description: "DeepSeek V3 chat model.",
+  },
+  {
+    id: "or/mistral-large",
+    label: "Mistral Large",
+    provider: "openrouter",
+    modelName: "mistralai/mistral-large",
+    description: "Mistral's flagship open-weight model.",
+  },
+  // ---- Groq (ultra-fast inference, OpenAI-compatible) ----------------------
+  {
+    id: "groq/llama-3.3-70b",
+    label: "Llama 3.3 70B · Groq",
+    provider: "groq",
+    modelName: "llama-3.3-70b-versatile",
+    description: "Llama 3.3 70B on Groq — very low latency.",
+  },
+  {
+    id: "groq/llama-3.1-8b",
+    label: "Llama 3.1 8B · Groq",
+    provider: "groq",
+    modelName: "llama-3.1-8b-instant",
+    description: "Fast, cheap 8B model on Groq.",
+  },
+  {
+    id: "groq/deepseek-r1-70b",
+    label: "DeepSeek R1 Distill 70B · Groq",
+    provider: "groq",
+    modelName: "deepseek-r1-distill-llama-70b",
+    description: "Reasoning-distilled Llama 70B on Groq.",
+  },
+  {
+    id: "groq/gemma2-9b",
+    label: "Gemma2 9B · Groq",
+    provider: "groq",
+    modelName: "gemma2-9b-it",
+    description: "Google Gemma2 9B on Groq.",
+  },
 ];
 
-/** Models exposed by the configured open-source gateway, from env. */
+/** Extra models exposed by a custom OpenAI-compatible gateway, from env. */
 function opensourceModels(): ModelInfo[] {
   const raw = process.env.OPENSOURCE_MODELS;
   if (!raw) return [];
@@ -90,7 +168,7 @@ function opensourceModels(): ModelInfo[] {
       label: modelName.split("/").pop() ?? modelName,
       provider: "opensource" as const,
       modelName,
-      description: "Open-source model via cloud gateway.",
+      description: "Custom open-source model via your gateway.",
     }));
 }
 
@@ -102,6 +180,10 @@ export function providerConfigured(provider: ProviderId): boolean {
       return Boolean(process.env.OPENAI_API_KEY);
     case "google":
       return Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+    case "openrouter":
+      return Boolean(process.env.OPENROUTER_API_KEY);
+    case "groq":
+      return Boolean(process.env.GROQ_API_KEY);
     case "opensource":
       return Boolean(
         process.env.OPENSOURCE_BASE_URL && process.env.OPENSOURCE_API_KEY,
@@ -128,12 +210,18 @@ export function getModelInfo(id: string): ModelInfo | undefined {
 
 export const DEFAULT_MODEL_ID = process.env.DEFAULT_MODEL || "claude-opus-4-8";
 
+export const PROVIDER_LABEL: Record<ProviderId, string> = {
+  anthropic: "Claude",
+  openai: "OpenAI",
+  google: "Gemini",
+  openrouter: "OpenRouter",
+  groq: "Groq",
+  opensource: "Custom gateway",
+};
+
 /** Whether any provider has credentials; if false the agent can't run. */
 export function anyProviderConfigured(): boolean {
-  return (
-    providerConfigured("anthropic") ||
-    providerConfigured("openai") ||
-    providerConfigured("google") ||
-    providerConfigured("opensource")
+  return (["anthropic", "openai", "google", "openrouter", "groq", "opensource"] as ProviderId[]).some(
+    providerConfigured,
   );
 }

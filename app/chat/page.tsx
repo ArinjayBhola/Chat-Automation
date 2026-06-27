@@ -10,11 +10,12 @@ export default async function ChatPage() {
   }
 
   const models = listModels();
-  // Prefer the configured default if available, else the first available model,
-  // else just the configured default id (UI shows "not configured").
+  // Prefer the configured default if available, else the first available model.
   const firstAvailable = models.find((m) => m.available);
   const defaultModelId =
-    models.find((m) => m.id === DEFAULT_MODEL_ID)?.id ??
+    (models.find((m) => m.id === DEFAULT_MODEL_ID)?.available
+      ? DEFAULT_MODEL_ID
+      : undefined) ??
     firstAvailable?.id ??
     DEFAULT_MODEL_ID;
 
@@ -24,7 +25,6 @@ export default async function ChatPage() {
         name: session.user.name,
         email: session.user.email,
         image: session.user.image,
-        isDemo: session.user.isDemo,
       }}
       models={models}
       defaultModelId={defaultModelId}

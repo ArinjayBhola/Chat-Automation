@@ -1,14 +1,25 @@
 "use client";
 
 import { Cpu } from "lucide-react";
-import type { ModelChoice } from "@/lib/ai/models";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PROVIDER_LABEL, type ModelChoice, type ProviderId } from "@/lib/ai/models";
 
-const PROVIDER_LABEL: Record<string, string> = {
-  anthropic: "Claude",
-  openai: "OpenAI",
-  google: "Gemini",
-  opensource: "Open source",
-};
+const PROVIDER_ORDER: ProviderId[] = [
+  "anthropic",
+  "openai",
+  "google",
+  "openrouter",
+  "groq",
+  "opensource",
+];
 
 export function ModelPicker({
   models,
@@ -19,31 +30,40 @@ export function ModelPicker({
   value: string;
   onChange: (id: string) => void;
 }) {
-  // Group by provider for the optgroups.
   const groups = models.reduce<Record<string, ModelChoice[]>>((acc, m) => {
     (acc[m.provider] ??= []).push(m);
     return acc;
   }, {});
 
+  const orderedProviders = PROVIDER_ORDER.filter((p) => groups[p]?.length);
+
   return (
-    <div className="relative">
-      <Cpu className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-md border bg-background py-2 pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {Object.entries(groups).map(([provider, items]) => (
-          <optgroup key={provider} label={PROVIDER_LABEL[provider] ?? provider}>
-            {items.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-                {m.available ? "" : " (not configured)"}
-              </option>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="w-full">
+        <span className="flex items-center gap-2 truncate">
+          <Cpu className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <SelectValue placeholder="Select a model" />
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {orderedProviders.map((provider) => (
+          <SelectGroup key={provider}>
+            <SelectLabel>{PROVIDER_LABEL[provider]}</SelectLabel>
+            {groups[provider].map((m) => (
+              <SelectItem key={m.id} value={m.id} disabled={!m.available}>
+                <span className="flex items-center gap-2">
+                  {m.label}
+                  {!m.available && (
+                    <span className="text-[10px] text-muted-foreground">
+                      · add key
+                    </span>
+                  )}
+                </span>
+              </SelectItem>
             ))}
-          </optgroup>
+          </SelectGroup>
         ))}
-      </select>
-    </div>
+      </SelectContent>
+    </Select>
   );
 }

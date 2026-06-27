@@ -1,21 +1,40 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import Image from "next/image";
 import { LogOut, Menu, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type Props = {
-  user: { name?: string | null; image?: string | null; isDemo: boolean };
+  user: { name?: string | null; email?: string | null; image?: string | null };
   onToggleSidebar: () => void;
   onNewChat: () => void;
 };
 
+function initials(name?: string | null) {
+  if (!name) return "U";
+  return name
+    .split(" ")
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 export function Header({ user, onToggleSidebar, onNewChat }: Props) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-3 sm:px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card/80 px-3 backdrop-blur sm:px-4">
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"
@@ -26,14 +45,7 @@ export function Header({ user, onToggleSidebar, onNewChat }: Props) {
         >
           <Menu className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-2">
-          <Logo badgeClassName="h-7 w-7" />
-          {user.isDemo && (
-            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              Demo
-            </span>
-          )}
-        </div>
+        <Logo badgeClassName="h-7 w-7" />
       </div>
 
       <div className="flex items-center gap-1">
@@ -42,32 +54,36 @@ export function Header({ user, onToggleSidebar, onNewChat }: Props) {
           <span className="hidden sm:inline">New chat</span>
         </Button>
         <ThemeToggle />
-        <div className="ml-1 flex items-center gap-2 rounded-full border bg-background py-1 pl-1 pr-2">
-          {user.image ? (
-            <Image
-              src={user.image}
-              alt={user.name ?? "User"}
-              width={24}
-              height={24}
-              className="h-6 w-6 rounded-full"
-              unoptimized
-            />
-          ) : (
-            <div className="h-6 w-6 rounded-full bg-muted" />
-          )}
-          <span className="hidden max-w-[120px] truncate text-sm sm:inline">
-            {user.name ?? "User"}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            aria-label="Sign out"
-            onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="ml-1 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Account menu"
+            >
+              <Avatar className="h-8 w-8 border">
+                {user.image && <AvatarImage src={user.image} alt={user.name ?? "User"} />}
+                <AvatarFallback>{initials(user.name)}</AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="flex flex-col gap-0.5">
+              <span className="truncate text-sm">{user.name ?? "User"}</span>
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                {user.email ?? ""}
+              </span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive [&_svg]:text-destructive"
+              onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+            >
+              <LogOut />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

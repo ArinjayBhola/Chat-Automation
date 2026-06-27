@@ -13,7 +13,7 @@ const WELCOME: ClientMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "👋 Hi, I'm Relay. Connect your tools in the sidebar, then ask me to check " +
+    "Hi, I'm Relay. Connect your tools in the sidebar, then ask me to check " +
     "email, organise files, summarise your week, or draft a message. I plan the " +
     "steps, use only the tools I need, and always ask before doing anything with " +
     "real consequences.",
@@ -22,7 +22,7 @@ const WELCOME: ClientMessage = {
   steps: [],
 };
 
-export function useChat(initialModelId: string, isDemo: boolean) {
+export function useChat(initialModelId: string) {
   const [messages, setMessages] = useState<ClientMessage[]>([WELCOME]);
   const [isSending, setIsSending] = useState(false);
   const [modelId, setModelId] = useState(initialModelId);
@@ -188,8 +188,7 @@ export function useChat(initialModelId: string, isDemo: boolean) {
       if (!approval) return;
       const fields = editedFields ?? approval.fields;
 
-      // Call the server to execute (approve) or record (skip). For demo / no-DB
-      // there's no persisted row, so we fall back to a local-only resolution.
+      // Call the server to execute (approve) or record (skip).
       const executed = decision === "approved";
       let detail =
         decision === "approved"
@@ -197,25 +196,23 @@ export function useChat(initialModelId: string, isDemo: boolean) {
           : "Skipped by user.";
       let failure: string | null = null;
 
-      if (!isDemo) {
-        try {
-          const path = decision === "approved" ? "approve" : "skip";
-          const res = await fetch(`/api/approvals/${approval.id}/${path}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fields }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (decision === "approved") {
-            if (res.ok && data.ok) {
-              detail = data.summary ?? "Approved and executed.";
-            } else if (data.error) {
-              failure = data.error as string; // execution failed → allow retry
-            }
+      try {
+        const path = decision === "approved" ? "approve" : "skip";
+        const res = await fetch(`/api/approvals/${approval.id}/${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (decision === "approved") {
+          if (res.ok && data.ok) {
+            detail = data.summary ?? "Approved and executed.";
+          } else if (data.error) {
+            failure = data.error as string; // execution failed → allow retry
           }
-        } catch {
-          // network issue — fall back to local marking
         }
+      } catch {
+        // network issue — fall back to local marking
       }
 
       setMessages((prev) =>
@@ -253,7 +250,7 @@ export function useChat(initialModelId: string, isDemo: boolean) {
         }),
       );
     },
-    [isDemo],
+    [],
   );
 
   const reset = useCallback(() => {

@@ -32,9 +32,6 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.isDemo) {
-    return NextResponse.json({ chats: [] });
-  }
   const rows = await listChats(session.user.id);
   return NextResponse.json({
     chats: rows.map((c) => ({
@@ -106,17 +103,15 @@ export async function POST(req: Request) {
   }
 
   const connected = new Set<ToolId>();
-  if (!session.user.isDemo) {
-    const conns = await getToolConnections(session.user.id);
-    for (const c of conns) connected.add(c.tool as ToolId);
-  }
+  const conns = await getToolConnections(session.user.id);
+  for (const c of conns) connected.add(c.tool as ToolId);
 
   const messages: ModelMessage[] = [
     ...(history ?? []).map((h) => ({ role: h.role, content: h.content })),
     { role: "user" as const, content: message },
   ];
 
-  const persist = !session.user.isDemo && isDbEnabled;
+  const persist = isDbEnabled;
   const userId = session.user.id;
 
   const encoder = new TextEncoder();

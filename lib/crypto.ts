@@ -4,12 +4,12 @@ import crypto from "node:crypto";
  * Authenticated symmetric encryption (AES-256-GCM) for OAuth tokens at rest.
  *
  * The key comes from TOKEN_ENCRYPTION_KEY (base64 or hex, decoding to 32 bytes).
- * In demo mode (no key configured) the helpers no-op with a clear marker so the
- * app still runs; never rely on that path in production.
+ * If no key is configured the helpers fall back to a clearly-marked plaintext
+ * passthrough so the app can still boot — set TOKEN_ENCRYPTION_KEY in production.
  */
 
 const PREFIX = "enc:v1:";
-const PLAIN_PREFIX = "plain:"; // used only when no key configured (demo)
+const PLAIN_PREFIX = "plain:"; // used only when no key is configured
 
 function getKey(): Buffer | null {
   const raw = process.env.TOKEN_ENCRYPTION_KEY;

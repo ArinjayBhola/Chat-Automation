@@ -1,147 +1,180 @@
 <h1 align="center">Relay</h1>
 
 <p align="center">
-  <strong>One AI assistant that relays your plain-English commands across
+  <strong>An AI assistant that relays your plain-English commands across
   Gmail, Drive, Docs, Calendar &amp; Notion — and hands off the consequential
   actions only when you approve.</strong>
 </p>
 
+<p align="center">
+  Next.js 16 · React 19 · Auth.js v5 · Drizzle + Postgres · Vercel AI SDK v7
+</p>
+
+---
+
 Relay breaks a request into steps, picks only the tools it needs, passes data
 between them, and pauses for your approval before anything with real
-consequences (sending email, creating events, editing docs/pages).
+consequences — sending email, creating events, editing docs or Notion pages.
+Every model response comes from a real provider and every tool call hits the
+real API; there is no mock data.
 
-## ✨ Highlights
+## Features
 
-- **Real orchestration, no mock data** — a streaming agent plans steps, calls
-  only the connected tools, passes data between them, and continues past
-  failures. Responses come from a real model and your real tools.
-- **Multi-provider AI** — Claude, OpenAI, Gemini, and open-source models (via an
-  OpenAI-compatible cloud gateway like OpenRouter/Groq/Together). Pick the model
-  in the sidebar. No local/Ollama dependency — built for cloud deploy.
-- **Approval gates** — sensitive actions pause for approval with editable fields
-  and a 30-second auto-skip; approving actually performs the action.
-- **Persistence + audit** — chats, messages, approvals, and an append-only audit
-  log in Postgres (Drizzle). OAuth tokens encrypted at rest (AES-256-GCM).
-- **Try-it login** — a one-click demo account lets you explore the UI without
-  Google; with an AI key set it chats for real (no tools until you connect them).
+- **Autonomous multi-tool agent.** Plans steps, selects only the connected
+  tools, passes results between steps, and continues past individual failures.
+- **Human-in-the-loop approvals.** Sensitive actions pause with editable fields
+  and a 30-second auto-skip. Approving actually performs the action; every
+  decision is written to an append-only audit log.
+- **Bring your own model.** Pick per-conversation from:
+  - **Anthropic** — Claude Opus 4.8, Sonnet 4.6, Haiku 4.5
+  - **OpenAI** — GPT-4o, GPT-4o mini
+  - **Google** — Gemini 2.0 Flash, Gemini 1.5 Pro
+  - **OpenRouter** — Hermes 3 (405B/70B), Llama 3.3 70B, Qwen 2.5 72B,
+    DeepSeek V3, Mistral Large
+  - **Groq** — Llama 3.3 70B, Llama 3.1 8B, DeepSeek R1 Distill, Gemma2
+  - **Custom gateway** — any OpenAI-compatible endpoint (Together, Fireworks, …)
+- **Five integrations.** Gmail, Google Drive, Google Docs, Google Calendar, and
+  Notion — connected per-user via OAuth, with tokens encrypted at rest.
+- **Secure by default.** Google sign-in (Auth.js v5), HTTP-only JWT sessions,
+  AES-256-GCM token encryption, per-user rate limiting, and input sanitization.
+- **Real persistence.** Chats, messages, approvals, and audit logs in Postgres
+  via Drizzle, with a chat-history sidebar.
 
-## 🚀 Quick start
+## Tech stack
+
+| Area     | Choice                                                              |
+| -------- | ------------------------------------------------------------------ |
+| Framework| Next.js 16 (App Router), React 19, TypeScript                      |
+| UI       | Tailwind CSS, shadcn-style components on Radix UI, lucide-react    |
+| Auth     | Auth.js v5 (NextAuth) — Google OAuth                               |
+| Data     | Drizzle ORM + Postgres (`postgres` driver; Neon/Supabase/local)   |
+| AI       | Vercel AI SDK v7 — Anthropic / OpenAI / Google / OpenAI-compatible |
+
+## Getting started
+
+### 1. Prerequisites
+
+- Node.js 22+
+- A Postgres database (Neon, Supabase, or local/Docker)
+- A Google Cloud OAuth client (for login + tool access)
+- At least one AI provider API key
+
+### 2. Configure
 
 ```bash
 npm install
 cp .env.example .env.local
-# To actually chat, add at least one provider key (e.g. ANTHROPIC_API_KEY).
-npm run dev
-# open http://localhost:3000  →  sign in with Google, or click "Try Demo"
 ```
 
-## 🔌 Enabling real integrations
+Fill in `.env.local`:
 
-Fill in the relevant values in `.env.local` (see `.env.example` for the full
-list and how to obtain each):
+| Purpose            | Variables                                                        |
+| ------------------ | ---------------------------------------------------------------- |
+| Auth               | `AUTH_SECRET` (`openssl rand -base64 32`), `NEXTAUTH_URL`        |
+| Google login+tools | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                       |
+| Database           | `DATABASE_URL`                                                   |
+| Token encryption   | `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`)              |
+| AI (any subset)    | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` |
+| Notion (optional)  | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`                       |
 
-| Capability             | Variables                                                        |
-| ---------------------- | ---------------------------------------------------------------- |
-| Google login + tools   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SECRET`        |
-| Persistence (Postgres) | `DATABASE_URL` (Neon pooled string, or any Postgres)             |
-| Token encryption       | `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`)               |
-| Claude                 | `ANTHROPIC_API_KEY`                                              |
-| OpenAI                 | `OPENAI_API_KEY`                                                 |
-| Gemini                 | `GOOGLE_GENERATIVE_AI_API_KEY`                                   |
-| Open-source models     | `OPENSOURCE_BASE_URL`, `OPENSOURCE_API_KEY`, `OPENSOURCE_MODELS` |
-| Notion                 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`                       |
+In the Google Cloud console, enable the **Gmail, Drive, Docs, and Calendar**
+APIs and register these authorized redirect URIs (swap the origin in
+production):
 
-Google needs several authorized redirect URIs (login + one per tool) and the
-Gmail/Drive/Docs/Calendar APIs enabled — see the comments in `.env.example`.
-
-### Database
-
-The app runs without a database (in-memory demo). To persist data:
-
-```bash
-# point DATABASE_URL at a Neon/Postgres instance, then:
-npm run db:push      # create tables from lib/schema.ts
-npm run db:studio    # optional: browse data
+```
+http://localhost:3000/api/auth/callback/google
+http://localhost:3000/api/tools/gmail/callback
+http://localhost:3000/api/tools/drive/callback
+http://localhost:3000/api/tools/docs/callback
+http://localhost:3000/api/tools/calendar/callback
+http://localhost:3000/api/tools/notion/callback
 ```
 
-## 🐳 Run with Docker (app + Postgres)
+### 3. Create tables & run
 
 ```bash
-# put AUTH_SECRET, TOKEN_ENCRYPTION_KEY, provider keys, etc. in a .env file
+npm run db:push     # apply the Drizzle schema
+npm run dev         # http://localhost:3000
+```
+
+Sign in with Google, connect tools from the sidebar, pick a model, and start
+giving Relay instructions.
+
+## Deployment
+
+### Vercel
+
+1. Import the repo and add every env var (use a **Neon pooled** `DATABASE_URL`).
+2. Set the Google OAuth redirect URIs to your production origin.
+3. Deploy, then run `npm run db:push` once against the production database.
+
+> The default rate limiter is in-memory (per instance). For multi-instance
+> production, back `lib/rate-limit.ts` with Redis/Upstash — the call sites don't
+> change.
+
+### Docker
+
+```bash
+# put AUTH_SECRET, TOKEN_ENCRYPTION_KEY, GOOGLE_*, and a provider key in .env
 docker compose up --build
-# first run only — create the tables against the compose Postgres:
+# first run only — create tables against the compose Postgres:
 DATABASE_URL=postgresql://postgres:password@localhost:5432/chat_automation npm run db:push
-# open http://localhost:3000
 ```
 
-The image uses Next.js standalone output (`output: "standalone"`) for a small
-runtime. `db.ts` uses the `postgres` driver, so the same code works against the
-Docker Postgres and against Neon/Supabase/RDS in production.
+The image uses Next.js standalone output, and the same `postgres` driver works
+against the compose database and managed Postgres in production.
 
-## ☁️ Deploy to Vercel
-
-1. Import the repo in Vercel.
-2. Add the env vars from the table above (use a **Neon pooled** `DATABASE_URL`).
-3. Set the Google OAuth redirect URIs to your production origin.
-4. Deploy, then run `npm run db:push` once (locally, pointed at the prod DB).
-
-> The in-memory rate limiter is per-instance; for multi-instance production back
-> `lib/rate-limit.ts` with Redis/Upstash (the call sites won't change).
-
-## 🧪 Quality
+## Development
 
 ```bash
+npm run dev         # dev server
 npm run test        # vitest unit tests (crypto, sanitize, ops)
 npm run typecheck   # tsc --noEmit
-npm run build       # next build (standalone)
+npm run build       # production build (standalone)
 ```
 
-## 🧱 Tech stack
-
-- **Next.js 16** (App Router), **React 19**, **TypeScript**, **Tailwind CSS**
-- **Auth.js v5** (NextAuth) — Google + one-click demo provider
-- **Drizzle ORM** + **Postgres** (`postgres` driver; Neon/Supabase/local)
-- **Vercel AI SDK v7** — `@ai-sdk/anthropic | openai | google | openai-compatible`
-- **lucide-react** icons, **next-themes** light/dark
-
-## 📁 Project structure
+## Project structure
 
 ```
 app/
   api/chat/route.ts          # streaming agent (NDJSON) + chat list
-  api/chat/[chatId]/route.ts # load/delete a chat
-  api/approvals/...          # list + approve/reject/skip/edit
-  api/tools/[tool]/...        # connect/callback/disconnect/test
-components/chat/             # sidebar, history, messages, steps, approval panel
+  api/chat/[chatId]/route.ts # load / delete a chat
+  api/approvals/...          # list + approve / reject / skip / edit
+  api/tools/[tool]/...        # connect / callback / disconnect / test
+components/
+  brand/logo.tsx             # Relay mark + wordmark (app/icon.svg = favicon)
+  ui/                        # shadcn-style primitives (Radix + Tailwind)
+  chat/                      # sidebar, history, messages, steps, approval panel
 lib/
   schema.ts                  # users, tool_connections, chats, messages, approvals, audit_logs
-  db.ts / db-queries.ts      # demo-safe data layer (postgres-js)
-  auth.ts / auth.config.ts   # Auth.js v5 (split for edge proxy)
+  db.ts / db-queries.ts      # Drizzle data layer (postgres-js)
+  auth.ts / auth.config.ts   # Auth.js v5 (split for the edge proxy)
   crypto.ts / rate-limit.ts / sanitize.ts
   tools/                     # OAuth flows + Google/Notion API wrappers + token mgmt
-  agent/                     # agent.ts, tools.ts, execute.ts, approvals.ts, events.ts, ops.ts
+  agent/                     # agent, tools, execute, approvals, events, ops
   ai/                        # model registry + provider resolver
-components/brand/logo.tsx   # Relay mark + wordmark (app/icon.svg = favicon)
 ```
 
-## 🔐 Security notes
+## How it works
 
-- OAuth tokens encrypted at rest (AES-256-GCM, `lib/crypto.ts`).
+1. You send a message. The chat route streams NDJSON events
+   (`text` / `step` / `approval` / `tools` / `meta`) back to the client.
+2. The agent (`streamText`, Vercel AI SDK v7) is given only the tools for the
+   services you've connected, and runs up to 8 steps.
+3. Read actions (search email, list events, read a doc) execute immediately.
+4. Write actions return an **approval proposal** instead of executing. The
+   proposal is persisted and surfaced in the UI.
+5. When you approve, the action runs against the real API with your (optionally
+   edited) values, and the result + an audit entry are recorded.
+
+## Security
+
+- OAuth tokens encrypted at rest with AES-256-GCM (`lib/crypto.ts`).
 - HTTP-only JWT sessions with CSRF protection via Auth.js; 7-day expiry.
-- Sensitive actions require explicit approval before execution.
+- Every consequential action requires explicit approval.
 - Per-user rate limiting and input sanitization on API routes.
 - Append-only `audit_logs` for every approval decision and execution.
 
-## 🗺️ Build phases (all complete)
-
-| Phase | Scope                                                   | Status  |
-| ----- | ------------------------------------------------------- | ------- |
-| 1     | Scaffold, DB schema, auth + demo, chat UI, AI registry  | ✅ done |
-| 2     | Tool OAuth connect flows + encrypted token persistence  | ✅ done |
-| 3     | Real streaming agent (tool calling, step execution)     | ✅ done |
-| 4     | Approval persistence + execute-on-approve + audit trail | ✅ done |
-| 5     | Hardening, chat history, Docker, deploy docs, tests     | ✅ done |
-
-## 📜 License
+## License
 
 MIT

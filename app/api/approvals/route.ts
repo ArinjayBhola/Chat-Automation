@@ -10,9 +10,6 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.isDemo) {
-    return NextResponse.json({ approvals: [] });
-  }
   const approvals = await getPendingApprovals(session.user.id);
   return NextResponse.json({ approvals });
 }

@@ -25,7 +25,7 @@ describe("crypto (with key)", () => {
   });
 });
 
-describe("crypto (no key → demo passthrough)", () => {
+describe("crypto (no key → plaintext passthrough)", () => {
   it("uses plain prefix and round-trips", async () => {
     delete process.env.TOKEN_ENCRYPTION_KEY;
     const { encrypt, decrypt } = await import("@/lib/crypto");

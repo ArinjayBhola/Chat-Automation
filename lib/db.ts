@@ -7,8 +7,9 @@ import * as schema from "./schema";
  *
  * Works with ANY Postgres — Neon (use the pooled connection string), Supabase,
  * RDS, or a local/Docker Postgres — so the same code runs in dev, Docker, and
- * serverless. Demo-first: if `DATABASE_URL` is unset, `db` is `null` and the
- * app falls back to in-memory behavior (queries return empty/echo values).
+ * serverless. `DATABASE_URL` is required in production; if it's unset, `db` is
+ * `null` and the query layer no-ops so the app can still boot (e.g. before the
+ * database is provisioned) without crashing at import time.
  *
  * A single client is cached on `globalThis` to survive Next.js HMR and to keep
  * the connection count low in serverless environments.
@@ -35,8 +36,7 @@ export type Database = NonNullable<typeof db>;
 export function requireDb(): Database {
   if (!db) {
     throw new Error(
-      "DATABASE_URL is not configured. This action requires a Postgres database. " +
-        "Set DATABASE_URL in .env.local or use Demo mode.",
+      "DATABASE_URL is not configured. This action requires a Postgres database.",
     );
   }
   return db;

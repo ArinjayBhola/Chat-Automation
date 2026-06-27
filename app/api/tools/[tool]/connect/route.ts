@@ -34,16 +34,6 @@ export async function POST(
     return NextResponse.json({ error: "Unknown tool" }, { status: 404 });
   }
 
-  if (session.user.isDemo) {
-    return NextResponse.json(
-      {
-        error:
-          "Demo accounts can't link real tools. Sign in with Google to connect.",
-      },
-      { status: 400 },
-    );
-  }
-
   if (!toolProviderConfigured(tool)) {
     const provider = TOOL_PROVIDER[tool];
     return NextResponse.json(

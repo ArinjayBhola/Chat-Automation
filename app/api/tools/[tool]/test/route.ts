@@ -22,13 +22,6 @@ export async function POST(
     return NextResponse.json({ error: "Unknown tool" }, { status: 404 });
   }
 
-  if (session.user.isDemo) {
-    return NextResponse.json({
-      ok: false,
-      error: "Demo mode — no real connection to test.",
-    });
-  }
-
   const token = await getValidAccessToken(session.user.id, tool);
   if (!token) {
     return NextResponse.json({ ok: false, error: "Not connected." }, { status: 200 });

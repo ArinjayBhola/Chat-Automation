@@ -1,16 +1,21 @@
 "use client";
 
-import Image from "next/image";
-import { Settings } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { ToolConnections } from "./tool-connections";
 import { ModelPicker } from "./model-picker";
 import { ChatHistory, type ChatListItem } from "./chat-history";
 import type { ModelChoice } from "@/lib/ai/models";
 
+type SidebarUser = {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+};
+
 type Props = {
   open: boolean;
-  user: { name?: string | null; email?: string | null; image?: string | null; isDemo: boolean };
+  user: SidebarUser;
   models: ModelChoice[];
   modelId: string;
   onModelChange: (id: string) => void;
@@ -20,6 +25,17 @@ type Props = {
   onDeleteChat: (id: string) => void;
   onNewChat: () => void;
 };
+
+function initials(name?: string | null) {
+  if (!name) return "U";
+  return name
+    .split(" ")
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 export function Sidebar({
   open,
@@ -40,21 +56,13 @@ export function Sidebar({
         open ? "translate-x-0" : "-translate-x-full",
       )}
     >
-      {/* Profile card */}
+      {/* Profile */}
       <div className="border-b p-3">
         <div className="flex items-center gap-3 rounded-lg border bg-background p-2.5">
-          {user.image ? (
-            <Image
-              src={user.image}
-              alt={user.name ?? "User"}
-              width={36}
-              height={36}
-              className="h-9 w-9 rounded-full"
-              unoptimized
-            />
-          ) : (
-            <div className="h-9 w-9 rounded-full bg-muted" />
-          )}
+          <Avatar className="h-9 w-9">
+            {user.image && <AvatarImage src={user.image} alt={user.name ?? "User"} />}
+            <AvatarFallback>{initials(user.name)}</AvatarFallback>
+          </Avatar>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{user.name ?? "User"}</p>
             <p className="truncate text-xs text-muted-foreground">
@@ -64,36 +72,23 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto scrollbar-thin p-3">
-        {!user.isDemo && (
-          <ChatHistory
-            chats={chats}
-            activeChatId={activeChatId}
-            onSelect={onSelectChat}
-            onDelete={onDeleteChat}
-            onNew={onNewChat}
-          />
-        )}
+      <div className="flex-1 space-y-5 overflow-y-auto scrollbar-thin p-3">
+        <ChatHistory
+          chats={chats}
+          activeChatId={activeChatId}
+          onSelect={onSelectChat}
+          onDelete={onDeleteChat}
+          onNew={onNewChat}
+        />
 
-        <ToolConnections isDemo={user.isDemo} />
+        <ToolConnections />
 
         <div>
-          <h2 className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="px-1 pb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Model
           </h2>
-          <ModelPicker
-            models={models}
-            value={modelId}
-            onChange={onModelChange}
-          />
+          <ModelPicker models={models} value={modelId} onChange={onModelChange} />
         </div>
-      </div>
-
-      <div className="border-t p-3">
-        <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-          <Settings className="h-4 w-4" />
-          Settings
-        </button>
       </div>
     </aside>
   );

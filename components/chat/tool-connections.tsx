@@ -34,7 +34,7 @@ const ERROR_LABELS: Record<string, string> = {
   access_denied: "Permission was denied.",
 };
 
-export function ToolConnections({ isDemo }: { isDemo: boolean }) {
+export function ToolConnections() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -173,12 +173,6 @@ export function ToolConnections({ isDemo }: { isDemo: boolean }) {
             </div>
           );
         })
-      )}
-
-      {isDemo && (
-        <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-[11px] text-muted-foreground">
-          You&apos;re in demo mode. Sign in with Google to link real tools.
-        </p>
       )}
 
       {note && (

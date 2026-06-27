@@ -30,7 +30,7 @@ export async function GET(
   }
 
   const session = await auth();
-  if (!session?.user || session.user.isDemo) {
+  if (!session?.user) {
     return back({ tool_error: "not_authenticated" });
   }
 

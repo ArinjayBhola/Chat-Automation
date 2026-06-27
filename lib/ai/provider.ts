@@ -42,6 +42,32 @@ export async function resolveModel(
       });
       return { model: google(info.modelName), info };
     }
+    case "openrouter": {
+      const { createOpenAICompatible } = await import(
+        "@ai-sdk/openai-compatible"
+      );
+      const openrouter = createOpenAICompatible({
+        name: "openrouter",
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY,
+        headers: {
+          "HTTP-Referer": process.env.NEXTAUTH_URL ?? "https://relay.app",
+          "X-Title": "Relay",
+        },
+      });
+      return { model: openrouter(info.modelName), info };
+    }
+    case "groq": {
+      const { createOpenAICompatible } = await import(
+        "@ai-sdk/openai-compatible"
+      );
+      const groq = createOpenAICompatible({
+        name: "groq",
+        baseURL: "https://api.groq.com/openai/v1",
+        apiKey: process.env.GROQ_API_KEY,
+      });
+      return { model: groq(info.modelName), info };
+    }
     case "opensource": {
       const { createOpenAICompatible } = await import(
         "@ai-sdk/openai-compatible"
