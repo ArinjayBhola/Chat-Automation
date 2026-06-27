@@ -17,7 +17,7 @@ export async function executeApproval(
   const tool = OP_TOOL[op];
   const token = await getValidAccessToken(userId, tool);
   if (!token) {
-    throw new Error(`${tool} is not connected — reconnect it and try again.`);
+    throw new Error(`${tool} is not connected. Reconnect it and try again.`);
   }
 
   const s = (k: string) => String(args[k] ?? "");

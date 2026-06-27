@@ -1,7 +1,10 @@
 import NextAuth, { type DefaultSession } from "next-auth";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
+import { z } from "zod";
 import { authConfig } from "../auth.config";
-import { upsertUserFromOAuth } from "./db-queries";
+import { getUserByEmail, upsertUserFromOAuth } from "./db-queries";
+import { verifyPassword } from "./password";
 
 // Augment the session/jwt with our custom fields.
 declare module "next-auth" {
@@ -22,6 +25,11 @@ const googleConfigured = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
 );
 
+const credentialsSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   // `trustHost` lets Auth.js work behind Vercel/proxies without NEXTAUTH_URL.
@@ -39,6 +47,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
       },
     }),
+    Credentials({
+      name: "Email",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(raw) {
+        const parsed = credentialsSchema.safeParse(raw);
+        if (!parsed.success) return null;
+
+        const user = await getUserByEmail(parsed.data.email);
+        if (!user?.passwordHash) return null;
+
+        const valid = await verifyPassword(
+          parsed.data.password,
+          user.passwordHash,
+        );
+        if (!valid) return null;
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.picture,
+        };
+      },
+    }),
   ],
   callbacks: {
     ...authConfig.callbacks,
@@ -54,15 +89,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user, account }) {
-      if (user && account?.provider === "google" && user.email) {
-        // Prefer the DB user id; fall back to the Google account id.
-        const dbUser = await upsertUserFromOAuth({
-          googleId: account.providerAccountId,
-          email: user.email,
-          name: user.name,
-          picture: user.image,
-        });
-        token.uid = dbUser?.id ?? account.providerAccountId;
+      if (user) {
+        if (account?.provider === "google" && user.email) {
+          const dbUser = await upsertUserFromOAuth({
+            googleId: account.providerAccountId,
+            email: user.email,
+            name: user.name,
+            picture: user.image,
+          });
+          token.uid = dbUser?.id ?? account.providerAccountId;
+        } else if (user.id) {
+          // Credentials: `user.id` is already the database id.
+          token.uid = user.id;
+        }
       }
       return token;
     },

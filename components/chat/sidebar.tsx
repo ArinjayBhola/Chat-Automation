@@ -66,7 +66,7 @@ export function Sidebar({
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{user.name ?? "User"}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {user.email ?? "—"}
+              {user.email ?? "No email"}
             </p>
           </div>
         </div>

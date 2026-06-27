@@ -68,6 +68,34 @@ export async function getUserById(id: string): Promise<User | null> {
   return rows[0] ?? null;
 }
 
+export async function getUserByEmail(email: string): Promise<User | null> {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create an email/password account. Throws if the email already exists. */
+export async function createCredentialsUser(input: {
+  email: string;
+  name: string | null;
+  passwordHash: string;
+}): Promise<User | null> {
+  if (!isDbEnabled || !db) return null;
+  const [created] = await db
+    .insert(users)
+    .values({
+      email: input.email.toLowerCase(),
+      name: input.name,
+      passwordHash: input.passwordHash,
+    })
+    .returning();
+  return created;
+}
+
 // ---- tool connections -----------------------------------------------------
 export async function getToolConnections(userId: string) {
   if (!isDbEnabled || !db) return [];

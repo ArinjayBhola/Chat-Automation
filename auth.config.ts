@@ -23,7 +23,9 @@ export const authConfig = {
       const isPublicAsset =
         nextUrl.pathname.startsWith("/_next") ||
         nextUrl.pathname.startsWith("/api/auth") ||
-        nextUrl.pathname === "/favicon.ico";
+        nextUrl.pathname === "/api/register" ||
+        nextUrl.pathname === "/favicon.ico" ||
+        nextUrl.pathname === "/icon.svg";
 
       if (isPublicAsset) return true;
       if (isAuthPage) {

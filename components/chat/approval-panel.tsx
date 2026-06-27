@@ -43,7 +43,7 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
             : "border-border bg-muted text-muted-foreground",
         )}
       >
-        {approved ? "✅ Approved" : "⏭️ Skipped"} — {approval.description}
+        {approved ? "✅ Approved" : "⏭️ Skipped"}: {approval.description}
       </div>
     );
   }

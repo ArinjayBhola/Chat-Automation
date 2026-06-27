@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>An AI assistant that relays your plain-English commands across
-  Gmail, Drive, Docs, Calendar &amp; Notion — and hands off the consequential
+  Gmail, Drive, Docs, Calendar &amp; Notion - and hands off the consequential
   actions only when you approve.</strong>
 </p>
 
@@ -14,7 +14,7 @@
 
 Relay breaks a request into steps, picks only the tools it needs, passes data
 between them, and pauses for your approval before anything with real
-consequences — sending email, creating events, editing docs or Notion pages.
+consequences - sending email, creating events, editing docs or Notion pages.
 Every model response comes from a real provider and every tool call hits the
 real API; there is no mock data.
 
@@ -26,17 +26,18 @@ real API; there is no mock data.
   and a 30-second auto-skip. Approving actually performs the action; every
   decision is written to an append-only audit log.
 - **Bring your own model.** Pick per-conversation from:
-  - **Anthropic** — Claude Opus 4.8, Sonnet 4.6, Haiku 4.5
-  - **OpenAI** — GPT-4o, GPT-4o mini
-  - **Google** — Gemini 2.0 Flash, Gemini 1.5 Pro
-  - **OpenRouter** — Hermes 3 (405B/70B), Llama 3.3 70B, Qwen 2.5 72B,
+  - **Anthropic** - Claude Opus 4.8, Sonnet 4.6, Haiku 4.5
+  - **OpenAI** - GPT-4o, GPT-4o mini
+  - **Google** - Gemini 2.0 Flash, Gemini 1.5 Pro
+  - **OpenRouter** - Hermes 3 (405B/70B), Llama 3.3 70B, Qwen 2.5 72B,
     DeepSeek V3, Mistral Large
-  - **Groq** — Llama 3.3 70B, Llama 3.1 8B, DeepSeek R1 Distill, Gemma2
-  - **Custom gateway** — any OpenAI-compatible endpoint (Together, Fireworks, …)
+  - **Groq** - Llama 3.3 70B, Llama 3.1 8B, DeepSeek R1 Distill, Gemma2
+  - **Custom gateway** - any OpenAI-compatible endpoint (Together, Fireworks, …)
 - **Five integrations.** Gmail, Google Drive, Google Docs, Google Calendar, and
-  Notion — connected per-user via OAuth, with tokens encrypted at rest.
-- **Secure by default.** Google sign-in (Auth.js v5), HTTP-only JWT sessions,
-  AES-256-GCM token encryption, per-user rate limiting, and input sanitization.
+  Notion - connected per-user via OAuth, with tokens encrypted at rest.
+- **Flexible sign-in.** Google OAuth or email/password (Auth.js v5), with
+  HTTP-only JWT sessions, AES-256-GCM token encryption, scrypt password hashing,
+  per-user rate limiting, and input sanitization.
 - **Real persistence.** Chats, messages, approvals, and audit logs in Postgres
   via Drizzle, with a chat-history sidebar.
 
@@ -46,9 +47,9 @@ real API; there is no mock data.
 | -------- | ------------------------------------------------------------------ |
 | Framework| Next.js 16 (App Router), React 19, TypeScript                      |
 | UI       | Tailwind CSS, shadcn-style components on Radix UI, lucide-react    |
-| Auth     | Auth.js v5 (NextAuth) — Google OAuth                               |
+| Auth     | Auth.js v5 (NextAuth): Google OAuth + email/password (scrypt)       |
 | Data     | Drizzle ORM + Postgres (`postgres` driver; Neon/Supabase/local)   |
-| AI       | Vercel AI SDK v7 — Anthropic / OpenAI / Google / OpenAI-compatible |
+| AI       | Vercel AI SDK v7 - Anthropic / OpenAI / Google / OpenAI-compatible |
 
 ## Getting started
 
@@ -72,7 +73,7 @@ Fill in `.env.local`:
 | ------------------ | ---------------------------------------------------------------- |
 | Auth               | `AUTH_SECRET` (`openssl rand -base64 32`), `NEXTAUTH_URL`        |
 | Google login+tools | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                       |
-| Database           | `DATABASE_URL`                                                   |
+| Database           | `DATABASE_URL` (also required for email/password sign-up)       |
 | Token encryption   | `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`)              |
 | AI (any subset)    | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` |
 | Notion (optional)  | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`                       |
@@ -97,8 +98,8 @@ npm run db:push     # apply the Drizzle schema
 npm run dev         # http://localhost:3000
 ```
 
-Sign in with Google, connect tools from the sidebar, pick a model, and start
-giving Relay instructions.
+Create an account with email/password (or Google), connect tools from the
+sidebar, pick a model, and start giving Relay instructions.
 
 ## Deployment
 
@@ -109,7 +110,7 @@ giving Relay instructions.
 3. Deploy, then run `npm run db:push` once against the production database.
 
 > The default rate limiter is in-memory (per instance). For multi-instance
-> production, back `lib/rate-limit.ts` with Redis/Upstash — the call sites don't
+> production, back `lib/rate-limit.ts` with Redis/Upstash - the call sites don't
 > change.
 
 ### Docker
@@ -117,7 +118,7 @@ giving Relay instructions.
 ```bash
 # put AUTH_SECRET, TOKEN_ENCRYPTION_KEY, GOOGLE_*, and a provider key in .env
 docker compose up --build
-# first run only — create tables against the compose Postgres:
+# first run only - create tables against the compose Postgres:
 DATABASE_URL=postgresql://postgres:password@localhost:5432/chat_automation npm run db:push
 ```
 

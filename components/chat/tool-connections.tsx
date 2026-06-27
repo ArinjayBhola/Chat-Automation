@@ -27,7 +27,7 @@ const ICONS: Record<ToolId, LucideIcon> = {
 };
 
 const ERROR_LABELS: Record<string, string> = {
-  invalid_state: "Security check failed — please try connecting again.",
+  invalid_state: "Security check failed. Please try connecting again.",
   exchange_failed: "Couldn't complete the connection with the provider.",
   not_authenticated: "Please sign in with Google before connecting tools.",
   unknown_tool: "Unknown tool.",

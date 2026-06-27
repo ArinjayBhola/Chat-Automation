@@ -48,6 +48,8 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     name: text("name"),
     picture: text("picture"),
+    // Set only for email/password accounts; null for OAuth-only users.
+    passwordHash: text("password_hash"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
