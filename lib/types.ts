@@ -1,0 +1,89 @@
+/**
+ * Shared client/server types for the chat experience. Kept framework-agnostic
+ * so both API routes and React components can import them.
+ */
+
+export type ToolId = "gmail" | "drive" | "docs" | "calendar" | "notion";
+
+export type ToolStatus = {
+  id: ToolId;
+  name: string;
+  connected: boolean;
+};
+
+export type StepStatus =
+  | "pending"
+  | "in_progress"
+  | "success"
+  | "failed"
+  | "needs_approval";
+
+export type Step = {
+  id: string;
+  tool: ToolId | null;
+  action: string;
+  status: StepStatus;
+  detail?: string;
+  error?: string;
+};
+
+export type ActionType =
+  | "send_email"
+  | "create_event"
+  | "update_doc"
+  | "create_notion_page";
+
+export type ApprovalField = {
+  key: string;
+  label: string;
+  value: string;
+  multiline?: boolean;
+};
+
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "skipped";
+
+export type ClientApproval = {
+  id: string;
+  actionType: ActionType;
+  toolName: string;
+  description: string;
+  fields: ApprovalField[];
+  status: ApprovalStatus;
+  /** seconds remaining before auto-skip; null when not counting down */
+  timeoutSeconds?: number;
+};
+
+export type ChatRole = "user" | "assistant";
+
+export type ClientMessage = {
+  id: string;
+  role: ChatRole;
+  content: string;
+  createdAt: string;
+  toolsUsed: ToolId[];
+  steps: Step[];
+  approval?: ClientApproval;
+  /** UI state: assistant message still being produced. */
+  thinking?: boolean;
+};
+
+export type ChatRequest = {
+  message: string;
+  chatId?: string;
+  modelId?: string;
+};
+
+export type ChatResponse = {
+  chatId: string;
+  message: ClientMessage;
+};
+
+export const TOOL_META: Record<ToolId, { name: string }> = {
+  gmail: { name: "Gmail" },
+  drive: { name: "Google Drive" },
+  docs: { name: "Google Docs" },
+  calendar: { name: "Google Calendar" },
+  notion: { name: "Notion" },
+};
+
+export const APPROVAL_TIMEOUT_SECONDS = 30;
