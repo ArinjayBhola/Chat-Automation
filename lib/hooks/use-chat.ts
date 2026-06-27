@@ -21,7 +21,7 @@ const WELCOME: ClientMessage = {
   steps: [],
 };
 
-export function useChat(initialModelId: string) {
+export function useChat(initialModelId: string, isDemo: boolean) {
   const [messages, setMessages] = useState<ClientMessage[]>([WELCOME]);
   const [isSending, setIsSending] = useState(false);
   const [modelId, setModelId] = useState(initialModelId);
@@ -65,6 +65,9 @@ export function useChat(initialModelId: string) {
           break;
         case "tools":
           patchMessage(id, (m) => ({ ...m, toolsUsed: event.tools }));
+          break;
+        case "meta":
+          chatIdRef.current = event.chatId;
           break;
         case "error":
           patchMessage(id, (m) => ({
@@ -169,40 +172,82 @@ export function useChat(initialModelId: string) {
   );
 
   const resolveApproval = useCallback(
-    (
+    async (
       messageId: string,
       decision: "approved" | "skipped",
       editedFields?: ApprovalField[],
     ) => {
+      const msg = messagesRef.current.find((m) => m.id === messageId);
+      const approval = msg?.approval;
+      if (!approval) return;
+      const fields = editedFields ?? approval.fields;
+
+      // Call the server to execute (approve) or record (skip). For demo / no-DB
+      // there's no persisted row, so we fall back to a local-only resolution.
+      const executed = decision === "approved";
+      let detail =
+        decision === "approved"
+          ? "Approved and executed."
+          : "Skipped by user.";
+      let failure: string | null = null;
+
+      if (!isDemo) {
+        try {
+          const path = decision === "approved" ? "approve" : "skip";
+          const res = await fetch(`/api/approvals/${approval.id}/${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fields }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (decision === "approved") {
+            if (res.ok && data.ok) {
+              detail = data.summary ?? "Approved and executed.";
+            } else if (data.error) {
+              failure = data.error as string; // execution failed → allow retry
+            }
+          }
+        } catch {
+          // network issue — fall back to local marking
+        }
+      }
+
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== messageId || !m.approval) return m;
-          const approval = {
+
+          if (failure) {
+            // Keep the approval pending so the user can edit/retry.
+            return {
+              ...m,
+              content:
+                m.content + `\n\n⚠️ Couldn't complete the action: ${failure}`,
+              approval: { ...m.approval, fields, timeoutSeconds: undefined },
+            };
+          }
+
+          const updatedApproval = {
             ...m.approval,
             status: decision,
-            fields: editedFields ?? m.approval.fields,
+            fields,
             timeoutSeconds: undefined,
           };
           const steps = m.steps.map((s) =>
             s.status === "needs_approval"
               ? {
                   ...s,
-                  status:
-                    decision === "approved"
-                      ? ("success" as const)
-                      : ("pending" as const),
-                  detail:
-                    decision === "approved"
-                      ? "Approved (execution wired in Phase 4)."
-                      : "Skipped by user.",
+                  status: executed
+                    ? ("success" as const)
+                    : ("pending" as const),
+                  detail,
                 }
               : s,
           );
-          return { ...m, approval, steps };
+          return { ...m, approval: updatedApproval, steps };
         }),
       );
     },
-    [],
+    [isDemo],
   );
 
   const reset = useCallback(() => {

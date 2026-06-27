@@ -189,6 +189,29 @@ export const approvals = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// audit_logs — append-only trail of approvals and sensitive actions
+// ---------------------------------------------------------------------------
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    action: text("action").notNull(), // e.g. "approval.approved", "tool.execute"
+    targetType: text("target_type"), // e.g. "approval", "message"
+    targetId: text("target_id"),
+    detail: jsonb("detail").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("audit_logs_user_idx").on(t.userId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Relations
 // ---------------------------------------------------------------------------
 export const usersRelations = relations(users, ({ many }) => ({
@@ -239,6 +262,8 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type Approval = typeof approvals.$inferSelect;
 export type NewApproval = typeof approvals.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 export type ToolName = (typeof toolEnum.enumValues)[number];
 export type ActionType = (typeof actionTypeEnum.enumValues)[number];

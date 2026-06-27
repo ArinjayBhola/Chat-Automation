@@ -2,10 +2,14 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { db, isDbEnabled } from "./db";
 import {
   approvals,
+  auditLogs,
   chats,
   messages,
   toolConnections,
   users,
+  type Approval,
+  type NewApproval,
+  type NewAuditLog,
   type NewMessage,
   type ToolName,
   type User,
@@ -176,6 +180,40 @@ export async function createChat(userId: string, title = "New chat") {
   return chat;
 }
 
+/**
+ * Ensure a chat row exists for this user. Returns its id, or null when no DB.
+ * If `chatId` is given and belongs to the user it's reused (and touched);
+ * otherwise a new chat is created using `title` (first user message).
+ */
+export async function ensureChat(
+  userId: string,
+  chatId: string | undefined,
+  title: string,
+): Promise<string | null> {
+  if (!isDbEnabled || !db) return null;
+
+  if (chatId) {
+    const rows = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+      .limit(1);
+    if (rows[0]) {
+      await db
+        .update(chats)
+        .set({ updatedAt: new Date() })
+        .where(eq(chats.id, chatId));
+      return rows[0].id;
+    }
+  }
+
+  const [chat] = await db
+    .insert(chats)
+    .values({ userId, title: title.slice(0, 80) || "New chat" })
+    .returning({ id: chats.id });
+  return chat?.id ?? null;
+}
+
 export async function getChatMessages(chatId: string) {
   if (!isDbEnabled || !db) return [];
   return db
@@ -198,4 +236,46 @@ export async function getPendingApprovals(userId: string) {
     .select()
     .from(approvals)
     .where(and(eq(approvals.userId, userId), eq(approvals.status, "pending")));
+}
+
+export async function createApproval(input: NewApproval) {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db.insert(approvals).values(input).returning();
+  return row;
+}
+
+export async function getApprovalById(id: string, userId: string) {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(approvals)
+    .where(and(eq(approvals.id, id), eq(approvals.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateApproval(
+  id: string,
+  patch: Partial<
+    Pick<Approval, "status" | "editedData" | "approvedAt" | "approvedBy">
+  >,
+) {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .update(approvals)
+    .set(patch)
+    .where(eq(approvals.id, id))
+    .returning();
+  return row ?? null;
+}
+
+// ---- audit ----------------------------------------------------------------
+export async function insertAuditLog(input: NewAuditLog) {
+  if (!isDbEnabled || !db) return;
+  try {
+    await db.insert(auditLogs).values(input);
+  } catch (e) {
+    // Audit must never break the main flow.
+    console.error("[audit] failed to write log:", e);
+  }
 }

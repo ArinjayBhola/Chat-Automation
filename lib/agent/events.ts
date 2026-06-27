@@ -10,6 +10,7 @@ export type AgentEvent =
   | { type: "step"; step: Step }
   | { type: "approval"; approval: ClientApproval }
   | { type: "tools"; tools: ToolId[] }
+  | { type: "meta"; chatId: string }
   | { type: "error"; message: string }
   | { type: "done" };
 

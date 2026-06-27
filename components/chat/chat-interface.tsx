@@ -33,7 +33,7 @@ export function ChatInterface({
     send,
     resolveApproval,
     reset,
-  } = useChat(defaultModelId);
+  } = useChat(defaultModelId, user.isDemo);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">

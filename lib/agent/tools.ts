@@ -1,7 +1,7 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { uid } from "../utils";
 import { APPROVAL_TIMEOUT_SECONDS } from "../types";
 import type {
   ActionType,
@@ -12,6 +12,7 @@ import type {
 import { getValidAccessToken } from "../tools/connections";
 import * as g from "../tools/google-api";
 import * as n from "../tools/notion-api";
+import type { ApprovalOp } from "./ops";
 
 /**
  * Builds the AI SDK tool set for a single request. Only tools whose backing
@@ -33,7 +34,7 @@ function makeApproval(
   fields: ApprovalField[],
 ): ClientApproval {
   return {
-    id: uid("appr"),
+    id: randomUUID(), // valid uuid → usable as the persisted approvals.id
     actionType,
     toolName,
     description,
@@ -43,11 +44,21 @@ function makeApproval(
   };
 }
 
-/** Standard shape returned by sensitive tools. */
-function approvalResult(approval: ClientApproval) {
+/**
+ * Standard shape returned by sensitive tools. `op` + `args` are consumed by the
+ * route for persistence/execution and stripped before the approval reaches the
+ * client; `note` steers the model to stop after queuing.
+ */
+function approvalResult(
+  approval: ClientApproval,
+  op: ApprovalOp,
+  args: Record<string, unknown>,
+) {
   return {
     status: "approval_required" as const,
     approval,
+    op,
+    args,
     note: "Queued for the user's approval. Do not retry; summarize what's pending and stop.",
   };
 }
@@ -106,6 +117,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
             { key: "subject", label: "Subject", value: subject },
             { key: "body", label: "Body", value: body, multiline: true },
           ]),
+          "gmail.send",
+          { to, subject, body },
         ),
     });
   }
@@ -169,6 +182,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
             { key: "title", label: "Title", value: title },
             { key: "content", label: "Content", value: content, multiline: true },
           ]),
+          "docs.create",
+          { title, content },
         ),
     });
 
@@ -182,6 +197,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
             { key: "documentId", label: "Document id", value: documentId },
             { key: "text", label: "Text to append", value: text, multiline: true },
           ]),
+          "docs.append",
+          { documentId, text },
         ),
     });
   }
@@ -226,6 +243,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
               multiline: true,
             },
           ]),
+          "calendar.create",
+          { title, start, end, description: description ?? "" },
         ),
     });
   }
@@ -261,6 +280,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
             { key: "title", label: "Title", value: title },
             { key: "content", label: "Content", value: content, multiline: true },
           ]),
+          "notion.create",
+          { parentId, title, content },
         ),
     });
 
@@ -274,6 +295,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
             { key: "pageId", label: "Page id", value: pageId },
             { key: "content", label: "Content", value: content, multiline: true },
           ]),
+          "notion.update",
+          { pageId, content },
         ),
     });
   }

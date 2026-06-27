@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { ModelMessage } from "ai";
 import { auth } from "@/lib/auth";
-import { getToolConnections } from "@/lib/db-queries";
+import { isDbEnabled } from "@/lib/db";
+import {
+  createApproval,
+  ensureChat,
+  getToolConnections,
+  insertAuditLog,
+  insertMessage,
+} from "@/lib/db-queries";
 import { planFromMessage } from "@/lib/ai/mock-agent";
 import { createAgentStream } from "@/lib/agent/agent";
 import { toolNameToToolId } from "@/lib/agent/tools";
 import { encodeEvent, type AgentEvent } from "@/lib/agent/events";
+import { OP_KEY, type ApprovalOp } from "@/lib/agent/ops";
 import { uid } from "@/lib/utils";
-import type { Step, ToolId } from "@/lib/types";
+import type { ActionType, ClientApproval, Step, ToolId } from "@/lib/types";
 
 export const maxDuration = 60;
 
@@ -23,6 +32,19 @@ const bodySchema = z.object({
   modelId: z.string().optional(),
   history: z.array(historyItem).max(40).optional(),
 });
+
+type PendingApproval = {
+  approval: ClientApproval;
+  op: ApprovalOp | null;
+  args: Record<string, unknown>;
+};
+
+type Accumulator = {
+  content: string;
+  steps: Map<string, Step>;
+  tools: Set<ToolId>;
+  approvals: PendingApproval[];
+};
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -44,8 +66,8 @@ export async function POST(req: Request) {
     );
   }
   const { message, modelId, history } = parsed.data;
+  const chatId = parsed.data.chatId;
 
-  // Which tools can this user actually use?
   const connected = new Set<ToolId>();
   if (!session.user.isDemo) {
     const conns = await getToolConnections(session.user.id);
@@ -57,26 +79,39 @@ export async function POST(req: Request) {
     { role: "user" as const, content: message },
   ];
 
+  const persist = !session.user.isDemo && isDbEnabled;
+  const userId = session.user.id;
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (e: AgentEvent) =>
         controller.enqueue(encoder.encode(encodeEvent(e)));
 
+      const acc: Accumulator = {
+        content: "",
+        steps: new Map(),
+        tools: new Set(),
+        approvals: [],
+      };
+
       try {
-        // Real agent only when a provider is configured and the user isn't demo.
         const agent = session.user.isDemo
           ? null
           : await createAgentStream({
-              ctx: { userId: session.user.id, connected },
+              ctx: { userId, connected },
               modelId: modelId ?? "claude-opus-4-8",
               messages,
             });
 
         if (!agent) {
-          await runMock(send, message);
+          await runMock(send, acc, message);
         } else {
-          await runReal(send, agent.result.fullStream);
+          await runReal(send, acc, agent.result.fullStream);
+        }
+
+        if (persist) {
+          await persistTurn(send, { userId, chatId, message, acc });
         }
       } catch (e) {
         send({
@@ -99,15 +134,77 @@ export async function POST(req: Request) {
 }
 
 // ---------------------------------------------------------------------------
-// Real agent → events (defensive about SDK part field names across versions)
+// Persistence (non-demo + DB): chat, messages, approval rows, audit.
+// ---------------------------------------------------------------------------
+async function persistTurn(
+  send: (e: AgentEvent) => void,
+  input: {
+    userId: string;
+    chatId: string | undefined;
+    message: string;
+    acc: Accumulator;
+  },
+) {
+  try {
+    const realChatId = await ensureChat(input.userId, input.chatId, input.message);
+    if (!realChatId) return;
+
+    await insertMessage({
+      chatId: realChatId,
+      userId: input.userId,
+      role: "user",
+      content: input.message,
+    });
+
+    const assistantMessageId = randomUUID();
+    await insertMessage({
+      id: assistantMessageId,
+      chatId: realChatId,
+      userId: input.userId,
+      role: "assistant",
+      content: input.acc.content,
+      toolUsed: [...input.acc.tools],
+      executionSteps: [...input.acc.steps.values()],
+    });
+
+    for (const p of input.acc.approvals) {
+      const args =
+        Object.keys(p.args).length > 0
+          ? p.args
+          : Object.fromEntries(p.approval.fields.map((f) => [f.key, f.value]));
+      await createApproval({
+        id: p.approval.id,
+        chatId: realChatId,
+        messageId: assistantMessageId,
+        userId: input.userId,
+        actionType: p.approval.actionType as ActionType,
+        toolName: p.approval.toolName,
+        actionData: { ...args, [OP_KEY]: p.op ?? null },
+        status: "pending",
+      });
+      await insertAuditLog({
+        userId: input.userId,
+        action: "approval.requested",
+        targetType: "approval",
+        targetId: p.approval.id,
+        detail: { actionType: p.approval.actionType, op: p.op },
+      });
+    }
+
+    send({ type: "meta", chatId: realChatId });
+  } catch (e) {
+    console.error("[chat] persistence failed:", e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Real agent → events
 // ---------------------------------------------------------------------------
 async function runReal(
   send: (e: AgentEvent) => void,
+  acc: Accumulator,
   fullStream: AsyncIterable<unknown>,
 ) {
-  const used = new Set<ToolId>();
-  const steps = new Map<string, Step>();
-
   for await (const raw of fullStream) {
     const part = raw as Record<string, unknown>;
     const type = part.type as string;
@@ -116,7 +213,10 @@ async function runReal(
       const value = (part.text ?? part.textDelta ?? part.delta) as
         | string
         | undefined;
-      if (value) send({ type: "text", value });
+      if (value) {
+        acc.content += value;
+        send({ type: "text", value });
+      }
       continue;
     }
 
@@ -124,21 +224,21 @@ async function runReal(
       const id = (part.toolCallId as string) ?? uid("call");
       const name = part.toolName as string;
       const toolId = toolNameToToolId(name);
-      if (toolId) used.add(toolId);
+      if (toolId) acc.tools.add(toolId);
       const step: Step = {
         id,
         tool: toolId,
         action: humanizeTool(name, part.input ?? part.args),
         status: "in_progress",
       };
-      steps.set(id, step);
+      acc.steps.set(id, step);
       send({ type: "step", step });
       continue;
     }
 
     if (type === "tool-result") {
       const id = (part.toolCallId as string) ?? uid("call");
-      const prev = steps.get(id);
+      const prev = acc.steps.get(id);
       const output = (part.output ?? part.result) as
         | Record<string, unknown>
         | undefined;
@@ -150,28 +250,31 @@ async function runReal(
         status: needsApproval ? "needs_approval" : "success",
         detail: needsApproval ? "Waiting for your approval." : undefined,
       };
-      steps.set(id, step);
+      acc.steps.set(id, step);
       send({ type: "step", step });
 
       if (needsApproval) {
-        send({
-          type: "approval",
-          approval: output.approval as never,
+        const approval = output.approval as ClientApproval;
+        acc.approvals.push({
+          approval,
+          op: (output.op as ApprovalOp) ?? null,
+          args: (output.args as Record<string, unknown>) ?? {},
         });
+        send({ type: "approval", approval });
       }
       continue;
     }
 
     if (type === "tool-error") {
       const id = (part.toolCallId as string) ?? uid("call");
-      const prev = steps.get(id);
+      const prev = acc.steps.get(id);
       const err = part.error;
       const step: Step = {
         ...(prev ?? { id, tool: null, action: "tool" }),
         status: "failed",
         error: err instanceof Error ? err.message : String(err ?? "failed"),
       };
-      steps.set(id, step);
+      acc.steps.set(id, step);
       send({ type: "step", step });
       continue;
     }
@@ -185,7 +288,7 @@ async function runReal(
     }
   }
 
-  send({ type: "tools", tools: [...used] });
+  send({ type: "tools", tools: [...acc.tools] });
 }
 
 function humanizeTool(name: string, input: unknown): string {
@@ -203,30 +306,47 @@ function truncate(s: string, n: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Mock agent → events (demo mode / no provider configured)
+// Mock agent → events (demo / no provider)
 // ---------------------------------------------------------------------------
-async function runMock(send: (e: AgentEvent) => void, message: string) {
+const ACTION_OP: Record<string, ApprovalOp> = {
+  send_email: "gmail.send",
+  create_event: "calendar.create",
+  update_doc: "docs.create",
+  create_notion_page: "notion.create",
+};
+
+async function runMock(
+  send: (e: AgentEvent) => void,
+  acc: Accumulator,
+  message: string,
+) {
   const plan = planFromMessage(message);
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  if (plan.toolsUsed.length > 0) {
-    send({ type: "tools", tools: plan.toolsUsed });
-  }
+  for (const t of plan.toolsUsed) acc.tools.add(t);
+  if (plan.toolsUsed.length > 0) send({ type: "tools", tools: plan.toolsUsed });
 
   for (const step of plan.steps) {
     send({ type: "step", step: { ...step, status: "in_progress" } });
-    await sleep(350);
+    await sleep(300);
+    acc.steps.set(step.id, step);
     send({ type: "step", step });
   }
 
-  // Stream the summary text word-by-word for a live feel.
   const words = plan.content.split(" ");
   for (let i = 0; i < words.length; i++) {
-    send({ type: "text", value: words[i] + (i < words.length - 1 ? " " : "") });
-    if (i % 4 === 0) await sleep(25);
+    const value = words[i] + (i < words.length - 1 ? " " : "");
+    acc.content += value;
+    send({ type: "text", value });
+    if (i % 4 === 0) await sleep(20);
   }
 
   if (plan.approval) {
+    acc.approvals.push({
+      approval: plan.approval,
+      op: ACTION_OP[plan.approval.actionType] ?? null,
+      args: Object.fromEntries(plan.approval.fields.map((f) => [f.key, f.value])),
+    });
     send({ type: "approval", approval: plan.approval });
   }
 }
