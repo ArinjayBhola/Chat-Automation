@@ -5,7 +5,9 @@ import {
   getChatForUser,
   getChatMessages,
   getPendingApprovalsForChat,
+  renameChat,
 } from "@/lib/db-queries";
+import { sanitizeLine } from "@/lib/sanitize";
 import { OP_KEY } from "@/lib/agent/ops";
 import type {
   ActionType,
@@ -90,6 +92,32 @@ export async function GET(
   }));
 
   return NextResponse.json({ chatId, title: chat.title, messages });
+}
+
+/**
+ * PATCH /api/chat/[chatId] — rename a chat.
+ */
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ chatId: string }> },
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { chatId } = await ctx.params;
+
+  const body = await req.json().catch(() => ({}));
+  const title = sanitizeLine(String(body?.title ?? ""));
+  if (!title) {
+    return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+
+  const updated = await renameChat(chatId, session.user.id, title);
+  if (!updated) {
+    return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true, title: updated });
 }
 
 /**

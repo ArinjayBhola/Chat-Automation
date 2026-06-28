@@ -293,6 +293,7 @@ export async function ensureChat(
   userId: string,
   chatId: string | undefined,
   title: string,
+  titleFn?: () => Promise<string>,
 ): Promise<string | null> {
   if (!isDbEnabled || !db) return null;
 
@@ -311,11 +312,37 @@ export async function ensureChat(
     }
   }
 
+  // New chat: prefer a generated title (only computed here, never on reuse).
+  let finalTitle = title;
+  if (titleFn) {
+    try {
+      finalTitle = await titleFn();
+    } catch {
+      /* fall back to the raw title */
+    }
+  }
+
   const [chat] = await db
     .insert(chats)
-    .values({ userId, title: title.slice(0, 80) || "New chat" })
+    .values({ userId, title: finalTitle.slice(0, 80) || "New chat" })
     .returning({ id: chats.id });
   return chat?.id ?? null;
+}
+
+/** Rename a chat the user owns. Returns the updated title or null. */
+export async function renameChat(
+  chatId: string,
+  userId: string,
+  title: string,
+): Promise<string | null> {
+  if (!isDbEnabled || !db) return null;
+  const clean = title.trim().slice(0, 80) || "New chat";
+  const [row] = await db
+    .update(chats)
+    .set({ title: clean, updatedAt: new Date() })
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+    .returning({ id: chats.id, title: chats.title });
+  return row?.title ?? null;
 }
 
 export async function getChatForUser(chatId: string, userId: string) {

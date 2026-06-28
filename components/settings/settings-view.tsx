@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
+  ArrowLeft,
   KeyRound,
   Loader2,
   LogOut,
-  PanelLeft,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
@@ -23,8 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { ToolConnections } from "@/components/chat/tool-connections";
-import { AppShell } from "@/components/layout/app-shell";
-import type { ChatListItem } from "@/components/chat/chat-history";
+import { Logo } from "@/components/brand/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type Initial = {
@@ -51,113 +52,79 @@ function initials(name?: string | null) {
 export function SettingsView({ initial }: { initial: Initial }) {
   const router = useRouter();
   const { update } = useSession();
-  const [chats, setChats] = useState<ChatListItem[]>([]);
-
-  const refreshChats = useCallback(async () => {
-    try {
-      const res = await fetch("/api/chat");
-      if (!res.ok) return;
-      const data: { chats: ChatListItem[] } = await res.json();
-      setChats(data.chats ?? []);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshChats();
-  }, [refreshChats]);
-
-  const handleDeleteChat = useCallback(
-    async (id: string) => {
-      setChats((prev) => prev.filter((c) => c.id !== id));
-      try {
-        await fetch(`/api/chat/${id}`, { method: "DELETE" });
-      } finally {
-        refreshChats();
-      }
-    },
-    [refreshChats],
-  );
 
   return (
-    <AppShell
-      sidebar={{
-        user: { name: initial.name, email: initial.email, image: initial.image },
-        chats,
-        activeChatId: undefined,
-        onSelectChat: (id) => router.push(`/chat?c=${id}`),
-        onDeleteChat: handleDeleteChat,
-        onNewChat: () => router.push("/chat"),
-      }}
-    >
-      {({ toggleSidebar }) => (
-        <>
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur sm:px-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Toggle sidebar"
-              onClick={toggleSidebar}
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="flex-1 text-sm font-medium">Settings</h1>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:text-destructive"
-              onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
-            </Button>
-          </header>
+    <div className="flex h-screen flex-col bg-background">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card/80 px-3 backdrop-blur sm:px-4">
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
+          aria-label="Back to chat"
+          className="text-muted-foreground"
+        >
+          <Link href="/chat">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <Logo badgeClassName="h-7 w-7" />
+        <h1 className="flex-1 text-sm font-medium text-muted-foreground">
+          Settings
+        </h1>
+        <ThemeToggle />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:text-destructive"
+          onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="hidden sm:inline">Sign out</span>
+        </Button>
+      </header>
 
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
-            <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight">
-                  Account settings
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Manage your profile, security, connected tools, and data.
-                </p>
-              </div>
-
-              <ProfileSection
-                initial={initial}
-                onSaved={async (name, email) => {
-                  await update({ name, email });
-                  router.refresh();
-                }}
-              />
-
-              <PasswordSection
-                hasPassword={initial.hasPassword}
-                isOAuth={initial.isOAuth}
-              />
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Connected tools</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Connect or disconnect the services Relay can act on.
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <ToolConnections />
-                </CardContent>
-              </Card>
-
-              <DataSection />
-
-              <DangerSection />
-            </div>
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Account settings
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage your profile, security, connected tools, and data.
+            </p>
           </div>
-        </>
-      )}
-    </AppShell>
+
+          <ProfileSection
+            initial={initial}
+            onSaved={async (name, email) => {
+              await update({ name, email });
+              router.refresh();
+            }}
+          />
+
+          <PasswordSection
+            hasPassword={initial.hasPassword}
+            isOAuth={initial.isOAuth}
+          />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Connected tools</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Connect or disconnect the services Relay can act on.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <ToolConnections />
+            </CardContent>
+          </Card>
+
+          <DataSection />
+
+          <DangerSection />
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -48,6 +48,8 @@ interface WorkflowStore {
   loadWorkflow: (id: string) => Promise<void>;
   clear: () => void;
   setMeta: (patch: Partial<WorkflowMeta>) => void;
+  /** Update the name without marking the workflow dirty (already persisted). */
+  renameMeta: (name: string) => void;
 
   onNodesChange: (changes: NodeChange<WfNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<WfEdge>[]) => void;
@@ -155,6 +157,9 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       meta: s.meta ? { ...s.meta, ...patch } : s.meta,
       dirty: true,
     })),
+
+  renameMeta: (name) =>
+    set((s) => ({ meta: s.meta ? { ...s.meta, name } : s.meta })),
 
   onNodesChange: (changes) =>
     set((s) => ({

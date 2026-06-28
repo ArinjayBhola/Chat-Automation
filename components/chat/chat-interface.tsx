@@ -89,6 +89,24 @@ export function ChatInterface({
     [chatId, reset, refreshChats],
   );
 
+  const handleRenameChat = useCallback(
+    async (id: string, title: string) => {
+      setChats((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, title } : c)),
+      );
+      try {
+        await fetch(`/api/chat/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+      } finally {
+        refreshChats();
+      }
+    },
+    [refreshChats],
+  );
+
   const activeTitle = chats.find((c) => c.id === chatId)?.title ?? "New chat";
 
   return (
@@ -99,6 +117,7 @@ export function ChatInterface({
         activeChatId: chatId,
         onSelectChat: handleSelectChat,
         onDeleteChat: handleDeleteChat,
+        onRenameChat: handleRenameChat,
         onNewChat: reset,
       }}
     >

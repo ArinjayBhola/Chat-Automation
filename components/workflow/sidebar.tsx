@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, Plus, Trash2, Workflow } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Loader2, Pencil, Plus, Trash2, Workflow, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ export function WorkflowSidebar({
   onSelect,
   onNew,
   onDelete,
+  onRename,
 }: {
   workflows: WorkflowListItem[];
   activeId: string | null;
@@ -28,7 +30,29 @@ export function WorkflowSidebar({
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, name: string) => void;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingId) inputRef.current?.select();
+  }, [editingId]);
+
+  function startEdit(w: WorkflowListItem) {
+    setEditingId(w.id);
+    setDraft(w.name);
+  }
+
+  function commit() {
+    if (editingId) {
+      const next = draft.trim();
+      if (next) onRename(editingId, next);
+    }
+    setEditingId(null);
+  }
+
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r bg-surface">
       <div className="flex h-14 items-center px-4">
@@ -67,46 +91,90 @@ export function WorkflowSidebar({
           </div>
         ) : (
           <ul className="space-y-0.5">
-            {workflows.map((w) => (
-              <li key={w.id}>
-                <div
-                  className={cn(
-                    "group flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors",
-                    w.id === activeId
-                      ? "bg-accent text-foreground"
-                      : "hover:bg-accent/60",
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => onSelect(w.id)}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-medium">
-                        {w.name}
-                      </span>
-                      {w.isPublished && (
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                      )}
+            {workflows.map((w) => {
+              const editing = editingId === w.id;
+              return (
+                <li key={w.id}>
+                  {editing ? (
+                    <div className="flex items-center gap-1 px-2 py-1.5">
+                      <input
+                        ref={inputRef}
+                        value={draft}
+                        maxLength={100}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commit();
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                      <button
+                        className="rounded-md p-1 text-muted-foreground hover:text-emerald-600"
+                        aria-label="Save name"
+                        onClick={commit}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        className="rounded-md p-1 text-muted-foreground hover:text-destructive"
+                        aria-label="Cancel rename"
+                        onClick={() => setEditingId(null)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    {w.description && (
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {w.description}
-                      </p>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${w.name}`}
-                    className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                    onClick={() => onDelete(w.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </li>
-            ))}
+                  ) : (
+                    <div
+                      className={cn(
+                        "group flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors",
+                        w.id === activeId
+                          ? "bg-accent text-foreground"
+                          : "hover:bg-accent/60",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => onSelect(w.id)}
+                        onDoubleClick={() => startEdit(w)}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-medium">
+                            {w.name}
+                          </span>
+                          {w.isPublished && (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                          )}
+                        </div>
+                        {w.description && (
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {w.description}
+                          </p>
+                        )}
+                      </button>
+                      <div className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                        <button
+                          type="button"
+                          aria-label={`Rename ${w.name}`}
+                          className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => startEdit(w)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete ${w.name}`}
+                          className="rounded-md p-1 text-muted-foreground hover:text-destructive"
+                          onClick={() => onDelete(w.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

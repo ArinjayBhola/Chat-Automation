@@ -14,6 +14,7 @@ import {
 } from "@/lib/db-queries";
 import { anyProviderConfigured } from "@/lib/ai/models";
 import { createAgentStream } from "@/lib/agent/agent";
+import { generateChatTitle } from "@/lib/agent/title";
 import { toolNameToToolId } from "@/lib/agent/tools";
 import { encodeEvent, type AgentEvent } from "@/lib/agent/events";
 import { OP_KEY, type ApprovalOp } from "@/lib/agent/ops";
@@ -144,7 +145,13 @@ export async function POST(req: Request) {
         } else {
           await runReal(send, acc, agent.result.fullStream);
           if (persist) {
-            await persistTurn(send, { userId, chatId, message, acc });
+            await persistTurn(send, {
+              userId,
+              chatId,
+              message,
+              acc,
+              modelId: modelId ?? "claude-opus-4-8",
+            });
           }
         }
       } catch (e) {
@@ -177,10 +184,17 @@ async function persistTurn(
     chatId: string | undefined;
     message: string;
     acc: Accumulator;
+    modelId: string;
   },
 ) {
   try {
-    const realChatId = await ensureChat(input.userId, input.chatId, input.message);
+    const realChatId = await ensureChat(
+      input.userId,
+      input.chatId,
+      input.message,
+      // Only invoked when a NEW chat is created (existing chats keep their name).
+      () => generateChatTitle(input.modelId, input.message),
+    );
     if (!realChatId) return;
 
     await insertMessage({

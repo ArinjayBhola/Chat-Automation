@@ -35,6 +35,7 @@ type Props = {
   activeChatId?: string;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
+  onRenameChat: (id: string, title: string) => void;
   onNewChat: () => void;
 };
 
@@ -59,6 +60,7 @@ export function Sidebar({
   activeChatId,
   onSelectChat,
   onDeleteChat,
+  onRenameChat,
   onNewChat,
 }: Props) {
   const pathname = usePathname();
@@ -115,6 +117,7 @@ export function Sidebar({
           activeChatId={activeChatId}
           onSelect={onSelectChat}
           onDelete={onDeleteChat}
+          onRename={onRenameChat}
         />
       </div>
 

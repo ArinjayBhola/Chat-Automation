@@ -16,6 +16,7 @@ export type AppSidebarData = {
   activeChatId?: string;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
+  onRenameChat: (id: string, title: string) => void;
   onNewChat: () => void;
 };
 

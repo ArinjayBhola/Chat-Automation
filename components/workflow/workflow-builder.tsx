@@ -24,6 +24,7 @@ export function WorkflowBuilder({
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
   const clear = useWorkflowStore((s) => s.clear);
   const meta = useWorkflowStore((s) => s.meta);
+  const renameMeta = useWorkflowStore((s) => s.renameMeta);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -100,6 +101,26 @@ export function WorkflowBuilder({
     [activeId, clear, refresh],
   );
 
+  const handleRename = useCallback(
+    async (id: string, name: string) => {
+      setWorkflows((prev) =>
+        prev.map((w) => (w.id === id ? { ...w, name } : w)),
+      );
+      // Keep the open editor's title in sync when renaming the active workflow.
+      if (id === activeId) renameMeta(name);
+      try {
+        await fetch(`/api/workflows/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+      } finally {
+        refresh();
+      }
+    },
+    [activeId, renameMeta, refresh],
+  );
+
   // Keep the sidebar name in sync after a rename + save.
   useEffect(() => {
     if (!meta) return;
@@ -122,6 +143,7 @@ export function WorkflowBuilder({
         onSelect={select}
         onNew={handleNew}
         onDelete={handleDelete}
+        onRename={handleRename}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
