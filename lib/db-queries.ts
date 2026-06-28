@@ -1,19 +1,37 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, sql } from "drizzle-orm";
 import { db, isDbEnabled } from "./db";
 import {
   approvals,
   auditLogs,
   chats,
+  executionSteps,
   messages,
   toolConnections,
   users,
+  workflowExecutions,
+  workflows,
+  workflowSchedules,
+  workflowVersions,
   type Approval,
+  type ExecutionStepRow,
   type NewApproval,
   type NewAuditLog,
   type NewMessage,
+  type ExecutionStepStatus,
   type ToolName,
   type User,
+  type WorkflowExecutionRow,
+  type WorkflowExecutionStatus,
+  type WorkflowRow,
+  type WorkflowScheduleRow,
+  type WorkflowTriggerType,
+  type WorkflowVersionRow,
 } from "./schema";
+import type {
+  WorkflowEdge,
+  WorkflowInput,
+  WorkflowNode,
+} from "./types/workflow";
 
 /**
  * Thin query layer over Drizzle. Every function is null-safe: when no database
@@ -387,4 +405,565 @@ export async function insertAuditLog(input: NewAuditLog) {
     // Audit must never break the main flow.
     console.error("[audit] failed to write log:", e);
   }
+}
+
+// ===========================================================================
+// Workflows
+// ===========================================================================
+const TERMINAL_EXECUTION_STATUSES: WorkflowExecutionStatus[] = [
+  "success",
+  "failed",
+];
+
+export async function createWorkflow(
+  userId: string,
+  name: string,
+  description?: string,
+): Promise<WorkflowRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .insert(workflows)
+    .values({
+      userId,
+      name,
+      description: description ?? null,
+      nodes: [],
+      edges: [],
+      isActive: true,
+      isPublished: false,
+      version: 1,
+    })
+    .returning();
+  return row ?? null;
+}
+
+export async function getWorkflow(
+  workflowId: string,
+  userId: string,
+): Promise<WorkflowRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(workflows)
+    .where(and(eq(workflows.id, workflowId), eq(workflows.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listWorkflows(
+  userId: string,
+  opts: {
+    search?: string;
+    sortBy?: "createdAt" | "updatedAt" | "name";
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<{ rows: WorkflowRow[]; total: number }> {
+  if (!isDbEnabled || !db) return { rows: [], total: 0 };
+
+  const conds = [eq(workflows.userId, userId)];
+  if (opts.search) conds.push(ilike(workflows.name, `%${opts.search}%`));
+  const where = and(...conds);
+
+  const orderCol =
+    opts.sortBy === "name"
+      ? workflows.name
+      : opts.sortBy === "createdAt"
+        ? workflows.createdAt
+        : workflows.updatedAt;
+  const order = opts.sortBy === "name" ? asc(orderCol) : desc(orderCol);
+
+  const limit = Math.min(Math.max(opts.limit ?? 20, 1), 100);
+  const offset = Math.max(opts.offset ?? 0, 0);
+
+  const rows = await db
+    .select()
+    .from(workflows)
+    .where(where)
+    .orderBy(order)
+    .limit(limit)
+    .offset(offset);
+
+  const [{ value }] = await db
+    .select({ value: count() })
+    .from(workflows)
+    .where(where);
+
+  return { rows, total: Number(value ?? 0) };
+}
+
+export async function updateWorkflow(
+  workflowId: string,
+  patch: WorkflowInput,
+): Promise<WorkflowRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .update(workflows)
+    .set({
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.description !== undefined
+        ? { description: patch.description ?? null }
+        : {}),
+      ...(patch.nodes !== undefined ? { nodes: patch.nodes } : {}),
+      ...(patch.edges !== undefined ? { edges: patch.edges } : {}),
+      ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(workflows.id, workflowId))
+    .returning();
+  return row ?? null;
+}
+
+/** Publish a workflow: snapshot the current graph and bump the version. */
+export async function publishWorkflow(
+  workflowId: string,
+): Promise<WorkflowRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(workflows)
+    .where(eq(workflows.id, workflowId))
+    .limit(1);
+  const current = rows[0];
+  if (!current) return null;
+
+  const nextVersion = current.version + 1;
+  await db.insert(workflowVersions).values({
+    workflowId,
+    version: nextVersion,
+    nodes: current.nodes,
+    edges: current.edges,
+  });
+
+  const [row] = await db
+    .update(workflows)
+    .set({ isPublished: true, version: nextVersion, updatedAt: new Date() })
+    .where(eq(workflows.id, workflowId))
+    .returning();
+  return row ?? null;
+}
+
+export async function deleteWorkflow(
+  workflowId: string,
+  userId: string,
+): Promise<boolean> {
+  if (!isDbEnabled || !db) return false;
+  const deleted = await db
+    .delete(workflows)
+    .where(and(eq(workflows.id, workflowId), eq(workflows.userId, userId)))
+    .returning({ id: workflows.id });
+  return deleted.length > 0;
+}
+
+export async function duplicateWorkflow(
+  workflowId: string,
+  userId: string,
+): Promise<WorkflowRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const original = await getWorkflow(workflowId, userId);
+  if (!original) return null;
+
+  const [row] = await db
+    .insert(workflows)
+    .values({
+      userId,
+      name: `${original.name} (copy)`,
+      description: original.description,
+      nodes: original.nodes,
+      edges: original.edges,
+      isActive: true,
+      isPublished: false,
+      version: 1,
+    })
+    .returning();
+  return row ?? null;
+}
+
+// ---- workflow versions ----------------------------------------------------
+export async function saveWorkflowVersion(
+  workflowId: string,
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+): Promise<WorkflowVersionRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const [{ value }] = await db
+    .select({ value: sql<number>`coalesce(max(${workflowVersions.version}), 0)` })
+    .from(workflowVersions)
+    .where(eq(workflowVersions.workflowId, workflowId));
+  const nextVersion = Number(value ?? 0) + 1;
+
+  const [row] = await db
+    .insert(workflowVersions)
+    .values({ workflowId, version: nextVersion, nodes, edges })
+    .returning();
+  return row ?? null;
+}
+
+export async function getWorkflowVersions(
+  workflowId: string,
+  limit = 10,
+): Promise<WorkflowVersionRow[]> {
+  if (!isDbEnabled || !db) return [];
+  return db
+    .select()
+    .from(workflowVersions)
+    .where(eq(workflowVersions.workflowId, workflowId))
+    .orderBy(desc(workflowVersions.version))
+    .limit(Math.min(Math.max(limit, 1), 100));
+}
+
+/** Restore a workflow's graph from a stored version snapshot. */
+export async function restoreWorkflowVersion(
+  workflowId: string,
+  version: number,
+): Promise<WorkflowRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(workflowVersions)
+    .where(
+      and(
+        eq(workflowVersions.workflowId, workflowId),
+        eq(workflowVersions.version, version),
+      ),
+    )
+    .limit(1);
+  const snapshot = rows[0];
+  if (!snapshot) return null;
+
+  const [row] = await db
+    .update(workflows)
+    .set({
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      updatedAt: new Date(),
+    })
+    .where(eq(workflows.id, workflowId))
+    .returning();
+  return row ?? null;
+}
+
+// ---- schedules ------------------------------------------------------------
+export async function createWorkflowSchedule(
+  workflowId: string,
+  schedule: string,
+  timezone: string,
+): Promise<WorkflowScheduleRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .insert(workflowSchedules)
+    .values({ workflowId, schedule, timezone })
+    .returning();
+  return row ?? null;
+}
+
+export async function getWorkflowSchedules(
+  workflowId: string,
+): Promise<WorkflowScheduleRow[]> {
+  if (!isDbEnabled || !db) return [];
+  return db
+    .select()
+    .from(workflowSchedules)
+    .where(eq(workflowSchedules.workflowId, workflowId))
+    .orderBy(desc(workflowSchedules.createdAt));
+}
+
+export async function getWorkflowSchedule(
+  scheduleId: string,
+): Promise<WorkflowScheduleRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(workflowSchedules)
+    .where(eq(workflowSchedules.id, scheduleId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateSchedule(
+  scheduleId: string,
+  updates: {
+    schedule?: string;
+    timezone?: string;
+    isActive?: boolean;
+    lastRun?: Date | null;
+    nextRun?: Date | null;
+  },
+): Promise<WorkflowScheduleRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .update(workflowSchedules)
+    .set({
+      ...(updates.schedule !== undefined ? { schedule: updates.schedule } : {}),
+      ...(updates.timezone !== undefined ? { timezone: updates.timezone } : {}),
+      ...(updates.isActive !== undefined ? { isActive: updates.isActive } : {}),
+      ...(updates.lastRun !== undefined ? { lastRun: updates.lastRun } : {}),
+      ...(updates.nextRun !== undefined ? { nextRun: updates.nextRun } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(workflowSchedules.id, scheduleId))
+    .returning();
+  return row ?? null;
+}
+
+export async function toggleSchedule(
+  scheduleId: string,
+  isActive: boolean,
+): Promise<WorkflowScheduleRow | null> {
+  return updateSchedule(scheduleId, { isActive });
+}
+
+export async function deleteSchedule(scheduleId: string): Promise<boolean> {
+  if (!isDbEnabled || !db) return false;
+  const deleted = await db
+    .delete(workflowSchedules)
+    .where(eq(workflowSchedules.id, scheduleId))
+    .returning({ id: workflowSchedules.id });
+  return deleted.length > 0;
+}
+
+// ---- executions -----------------------------------------------------------
+export async function createExecution(
+  workflowId: string,
+  userId: string,
+  triggerType: WorkflowTriggerType,
+  inputData: Record<string, unknown> = {},
+): Promise<WorkflowExecutionRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .insert(workflowExecutions)
+    .values({
+      workflowId,
+      userId,
+      triggerType,
+      status: "running",
+      inputData,
+      outputData: {},
+    })
+    .returning();
+  return row ?? null;
+}
+
+export async function getExecution(
+  executionId: string,
+): Promise<WorkflowExecutionRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(workflowExecutions)
+    .where(eq(workflowExecutions.id, executionId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listExecutions(
+  workflowId: string,
+  opts: {
+    status?: WorkflowExecutionStatus;
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<{ rows: WorkflowExecutionRow[]; total: number }> {
+  if (!isDbEnabled || !db) return { rows: [], total: 0 };
+
+  const conds = [eq(workflowExecutions.workflowId, workflowId)];
+  if (opts.status) conds.push(eq(workflowExecutions.status, opts.status));
+  const where = and(...conds);
+
+  const limit = Math.min(Math.max(opts.limit ?? 50, 1), 100);
+  const offset = Math.max(opts.offset ?? 0, 0);
+
+  const rows = await db
+    .select()
+    .from(workflowExecutions)
+    .where(where)
+    .orderBy(desc(workflowExecutions.startedAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [{ value }] = await db
+    .select({ value: count() })
+    .from(workflowExecutions)
+    .where(where);
+
+  return { rows, total: Number(value ?? 0) };
+}
+
+export async function updateExecutionStatus(
+  executionId: string,
+  status: WorkflowExecutionStatus,
+  outputData?: Record<string, unknown>,
+  error?: string,
+): Promise<WorkflowExecutionRow | null> {
+  if (!isDbEnabled || !db) return null;
+
+  const isTerminal = TERMINAL_EXECUTION_STATUSES.includes(status);
+  let completedAt: Date | undefined;
+  let duration: number | undefined;
+  if (isTerminal) {
+    completedAt = new Date();
+    const existing = await getExecution(executionId);
+    if (existing) {
+      duration = completedAt.getTime() - existing.startedAt.getTime();
+    }
+  }
+
+  const [row] = await db
+    .update(workflowExecutions)
+    .set({
+      status,
+      ...(outputData !== undefined ? { outputData } : {}),
+      ...(error !== undefined ? { error } : {}),
+      ...(completedAt ? { completedAt } : {}),
+      ...(duration !== undefined ? { duration } : {}),
+    })
+    .where(eq(workflowExecutions.id, executionId))
+    .returning();
+  return row ?? null;
+}
+
+// ---- execution steps ------------------------------------------------------
+export async function addExecutionStep(
+  executionId: string,
+  nodeId: string,
+  nodeType: string,
+  input: Record<string, unknown> = {},
+): Promise<ExecutionStepRow | null> {
+  if (!isDbEnabled || !db) return null;
+  const [{ value }] = await db
+    .select({ value: count() })
+    .from(executionSteps)
+    .where(eq(executionSteps.executionId, executionId));
+
+  const [row] = await db
+    .insert(executionSteps)
+    .values({
+      executionId,
+      stepIndex: Number(value ?? 0),
+      nodeId,
+      nodeType,
+      status: "running",
+      input,
+      output: {},
+    })
+    .returning();
+  return row ?? null;
+}
+
+export async function updateExecutionStep(
+  stepId: string,
+  status: ExecutionStepStatus,
+  output?: Record<string, unknown>,
+  error?: string,
+): Promise<ExecutionStepRow | null> {
+  if (!isDbEnabled || !db) return null;
+
+  let duration: number | undefined;
+  if (status === "success" || status === "failed") {
+    const rows = await db
+      .select({ createdAt: executionSteps.createdAt })
+      .from(executionSteps)
+      .where(eq(executionSteps.id, stepId))
+      .limit(1);
+    if (rows[0]) duration = Date.now() - rows[0].createdAt.getTime();
+  }
+
+  const [row] = await db
+    .update(executionSteps)
+    .set({
+      status,
+      ...(output !== undefined ? { output } : {}),
+      ...(error !== undefined ? { error } : {}),
+      ...(duration !== undefined ? { duration } : {}),
+    })
+    .where(eq(executionSteps.id, stepId))
+    .returning();
+  return row ?? null;
+}
+
+export async function getExecutionSteps(
+  executionId: string,
+): Promise<ExecutionStepRow[]> {
+  if (!isDbEnabled || !db) return [];
+  return db
+    .select()
+    .from(executionSteps)
+    .where(eq(executionSteps.executionId, executionId))
+    .orderBy(asc(executionSteps.stepIndex));
+}
+
+// ---- analytics ------------------------------------------------------------
+export async function getExecutionStats(
+  workflowId: string,
+  days = 30,
+): Promise<{
+  total: number;
+  success: number;
+  failed: number;
+  running: number;
+  avgDurationMs: number;
+}> {
+  const empty = { total: 0, success: 0, failed: 0, running: 0, avgDurationMs: 0 };
+  if (!isDbEnabled || !db) return empty;
+
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const where = and(
+    eq(workflowExecutions.workflowId, workflowId),
+    gte(workflowExecutions.startedAt, since),
+  );
+
+  const [stats] = await db
+    .select({
+      total: count(),
+      success: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'success')`,
+      failed: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'failed')`,
+      running: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'running')`,
+      avgDurationMs: sql<number>`coalesce(avg(${workflowExecutions.duration}), 0)`,
+    })
+    .from(workflowExecutions)
+    .where(where);
+
+  return {
+    total: Number(stats?.total ?? 0),
+    success: Number(stats?.success ?? 0),
+    failed: Number(stats?.failed ?? 0),
+    running: Number(stats?.running ?? 0),
+    avgDurationMs: Math.round(Number(stats?.avgDurationMs ?? 0)),
+  };
+}
+
+export async function getWorkflowStats(userId: string): Promise<{
+  totalWorkflows: number;
+  published: number;
+  active: number;
+  totalExecutions: number;
+}> {
+  const empty = {
+    totalWorkflows: 0,
+    published: 0,
+    active: 0,
+    totalExecutions: 0,
+  };
+  if (!isDbEnabled || !db) return empty;
+
+  const [wf] = await db
+    .select({
+      totalWorkflows: count(),
+      published: sql<number>`count(*) filter (where ${workflows.isPublished})`,
+      active: sql<number>`count(*) filter (where ${workflows.isActive})`,
+    })
+    .from(workflows)
+    .where(eq(workflows.userId, userId));
+
+  const [ex] = await db
+    .select({ totalExecutions: count() })
+    .from(workflowExecutions)
+    .where(eq(workflowExecutions.userId, userId));
+
+  return {
+    totalWorkflows: Number(wf?.totalWorkflows ?? 0),
+    published: Number(wf?.published ?? 0),
+    active: Number(wf?.active ?? 0),
+    totalExecutions: Number(ex?.totalExecutions ?? 0),
+  };
 }
