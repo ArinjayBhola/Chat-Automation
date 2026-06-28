@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
+  LayoutDashboard,
   LogOut,
   PanelLeftClose,
   Plus,
@@ -143,6 +144,17 @@ export function Sidebar({
           <Link href="/workflows">
             <Workflow className="h-4 w-4" />
             Workflows
+          </Link>
+        </Button>
+
+        <Button
+          asChild
+          variant="ghost"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <Link href="/dashboard">
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
           </Link>
         </Button>
 

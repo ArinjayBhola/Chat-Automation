@@ -1048,3 +1048,194 @@ export async function getWorkflowStats(userId: string): Promise<{
     totalExecutions: Number(ex?.totalExecutions ?? 0),
   };
 }
+
+// ===========================================================================
+// Dashboard / monitoring
+// ===========================================================================
+export interface DashboardMetrics {
+  totalWorkflows: number;
+  publishedWorkflows: number;
+  activeSchedules: number;
+  totalExecutions: number;
+  successfulExecutions: number;
+  failedExecutions: number;
+  runningExecutions: number;
+  pausedExecutions: number;
+  averageDurationMs: number;
+  successRate: number;
+}
+
+export async function getDashboardMetrics(
+  userId: string,
+): Promise<DashboardMetrics> {
+  const empty: DashboardMetrics = {
+    totalWorkflows: 0,
+    publishedWorkflows: 0,
+    activeSchedules: 0,
+    totalExecutions: 0,
+    successfulExecutions: 0,
+    failedExecutions: 0,
+    runningExecutions: 0,
+    pausedExecutions: 0,
+    averageDurationMs: 0,
+    successRate: 0,
+  };
+  if (!isDbEnabled || !db) return empty;
+
+  const [wf] = await db
+    .select({
+      total: count(),
+      published: sql<number>`count(*) filter (where ${workflows.isPublished})`,
+    })
+    .from(workflows)
+    .where(eq(workflows.userId, userId));
+
+  const [sched] = await db
+    .select({ active: count() })
+    .from(workflowSchedules)
+    .innerJoin(workflows, eq(workflowSchedules.workflowId, workflows.id))
+    .where(and(eq(workflows.userId, userId), eq(workflowSchedules.isActive, true)));
+
+  const [ex] = await db
+    .select({
+      total: count(),
+      success: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'success')`,
+      failed: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'failed')`,
+      running: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'running')`,
+      paused: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'paused')`,
+      avg: sql<number>`coalesce(avg(${workflowExecutions.duration}), 0)`,
+    })
+    .from(workflowExecutions)
+    .where(eq(workflowExecutions.userId, userId));
+
+  const success = Number(ex?.success ?? 0);
+  const failed = Number(ex?.failed ?? 0);
+  const completed = success + failed;
+
+  return {
+    totalWorkflows: Number(wf?.total ?? 0),
+    publishedWorkflows: Number(wf?.published ?? 0),
+    activeSchedules: Number(sched?.active ?? 0),
+    totalExecutions: Number(ex?.total ?? 0),
+    successfulExecutions: success,
+    failedExecutions: failed,
+    runningExecutions: Number(ex?.running ?? 0),
+    pausedExecutions: Number(ex?.paused ?? 0),
+    averageDurationMs: Math.round(Number(ex?.avg ?? 0)),
+    successRate: completed > 0 ? Math.round((success / completed) * 100) : 0,
+  };
+}
+
+export interface TrendPoint {
+  date: string; // YYYY-MM-DD
+  successful: number;
+  failed: number;
+  other: number;
+}
+
+export async function getExecutionTrend(
+  userId: string,
+  days = 30,
+): Promise<TrendPoint[]> {
+  if (!isDbEnabled || !db) return [];
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const dayExpr = sql<string>`to_char(date_trunc('day', ${workflowExecutions.startedAt}), 'YYYY-MM-DD')`;
+
+  const rows = await db
+    .select({
+      date: dayExpr,
+      successful: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'success')`,
+      failed: sql<number>`count(*) filter (where ${workflowExecutions.status} = 'failed')`,
+      total: count(),
+    })
+    .from(workflowExecutions)
+    .where(
+      and(
+        eq(workflowExecutions.userId, userId),
+        gte(workflowExecutions.startedAt, since),
+      ),
+    )
+    .groupBy(dayExpr)
+    .orderBy(dayExpr);
+
+  return rows.map((r) => {
+    const successful = Number(r.successful ?? 0);
+    const failed = Number(r.failed ?? 0);
+    return {
+      date: r.date,
+      successful,
+      failed,
+      other: Math.max(Number(r.total ?? 0) - successful - failed, 0),
+    };
+  });
+}
+
+export interface RecentExecution {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  status: string;
+  triggerType: string;
+  startedAt: Date;
+  completedAt: Date | null;
+  duration: number | null;
+  error: string | null;
+}
+
+export async function getRecentExecutions(
+  userId: string,
+  limit = 10,
+): Promise<RecentExecution[]> {
+  if (!isDbEnabled || !db) return [];
+  return db
+    .select({
+      id: workflowExecutions.id,
+      workflowId: workflowExecutions.workflowId,
+      workflowName: workflows.name,
+      status: workflowExecutions.status,
+      triggerType: workflowExecutions.triggerType,
+      startedAt: workflowExecutions.startedAt,
+      completedAt: workflowExecutions.completedAt,
+      duration: workflowExecutions.duration,
+      error: workflowExecutions.error,
+    })
+    .from(workflowExecutions)
+    .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+    .where(eq(workflowExecutions.userId, userId))
+    .orderBy(desc(workflowExecutions.startedAt))
+    .limit(Math.min(Math.max(limit, 1), 100));
+}
+
+export interface NodeUsage {
+  nodeType: string;
+  total: number;
+  success: number;
+  failed: number;
+}
+
+export async function getNodeTypeUsage(userId: string): Promise<NodeUsage[]> {
+  if (!isDbEnabled || !db) return [];
+  const rows = await db
+    .select({
+      nodeType: executionSteps.nodeType,
+      total: count(),
+      success: sql<number>`count(*) filter (where ${executionSteps.status} = 'success')`,
+      failed: sql<number>`count(*) filter (where ${executionSteps.status} = 'failed')`,
+    })
+    .from(executionSteps)
+    .innerJoin(
+      workflowExecutions,
+      eq(executionSteps.executionId, workflowExecutions.id),
+    )
+    .where(eq(workflowExecutions.userId, userId))
+    .groupBy(executionSteps.nodeType);
+
+  return rows
+    .map((r) => ({
+      nodeType: r.nodeType,
+      total: Number(r.total ?? 0),
+      success: Number(r.success ?? 0),
+      failed: Number(r.failed ?? 0),
+    }))
+    .sort((a, b) => b.total - a.total);
+}
