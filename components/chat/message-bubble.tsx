@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Volume2, Square } from "lucide-react";
 import { BrandMark } from "@/components/brand/logo";
 import { cn, formatTime } from "@/lib/utils";
 import { TOOL_META } from "@/lib/types";
@@ -20,8 +20,8 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
 
   if (isUser) {
     return (
-      <div className="flex animate-fade-in flex-col items-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-muted px-4 py-2.5 text-sm">
+      <div className="flex animate-slide-up duration-500 flex-col items-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary/10 border border-primary/20 px-4 py-3 text-[15px] shadow-sm transition-all hover:shadow-md">
           <div className="whitespace-pre-wrap break-words leading-relaxed">
             {message.content}
           </div>
@@ -34,7 +34,7 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
   }
 
   return (
-    <div className="flex animate-fade-in gap-3">
+    <div className="flex animate-slide-up duration-500 gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-card text-primary">
         <BrandMark className="h-5 w-5" />
       </div>
@@ -85,6 +85,7 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
 
 function AssistantText({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   if (!content) return null;
 
   function copy() {
@@ -94,28 +95,60 @@ function AssistantText({ content }: { content: string }) {
     });
   }
 
+  function toggleSpeech() {
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+    } else {
+      window.speechSynthesis.cancel(); // Cancel any ongoing speech
+      const utterance = new SpeechSynthesisUtterance(content);
+      utterance.onend = () => setSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+      setSpeaking(true);
+    }
+  }
+
   return (
     <div className="group relative">
       <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
         {content}
       </div>
-      <button
-        onClick={copy}
-        aria-label="Copy message"
-        className="mt-2 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        {copied ? (
-          <>
-            <Check className="h-3 w-3 text-emerald-500" />
-            Copied
-          </>
-        ) : (
-          <>
-            <Copy className="h-3 w-3" />
-            Copy
-          </>
-        )}
-      </button>
+      <div className="mt-2 flex items-center gap-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        <button
+          onClick={copy}
+          aria-label="Copy message"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 text-emerald-500" />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" />
+              Copy
+            </>
+          )}
+        </button>
+        <button
+          onClick={toggleSpeech}
+          aria-label="Read aloud"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          {speaking ? (
+            <>
+              <Square className="h-3 w-3 text-destructive" />
+              Stop
+            </>
+          ) : (
+            <>
+              <Volume2 className="h-3 w-3" />
+              Read aloud
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

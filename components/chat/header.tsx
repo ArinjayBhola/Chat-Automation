@@ -16,7 +16,7 @@ type Props = {
  */
 export function Header({ title, onToggleSidebar, onNewChat }: Props) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur sm:px-4">
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/40 bg-background/60 px-3 backdrop-blur-xl sm:px-4">
       <Button
         variant="ghost"
         size="icon"
@@ -33,15 +33,6 @@ export function Header({ title, onToggleSidebar, onNewChat }: Props) {
         {title}
       </h1>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-muted-foreground"
-        onClick={onNewChat}
-      >
-        <Plus className="h-4 w-4" />
-        <span className="hidden sm:inline">New chat</span>
-      </Button>
     </header>
   );
 }

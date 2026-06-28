@@ -46,12 +46,12 @@ export function MessageInput({
   const nearLimit = value.length > MAX * 0.9;
 
   return (
-    <div className="border-t bg-background px-4 pb-4 pt-3">
+    <div className="border-t border-border/40 bg-background/60 backdrop-blur-md px-4 pb-4 pt-3">
       <div className="mx-auto max-w-3xl">
         <div
           className={cn(
-            "rounded-2xl border bg-card shadow-sm transition-all",
-            focused ? "border-primary/50 ring-2 ring-primary/15" : "border-border",
+            "rounded-2xl border bg-card/80 shadow-lg transition-all duration-300",
+            focused ? "border-primary/50 ring-[3px] ring-primary/20 shadow-primary/10" : "border-border/50",
             disabled && "opacity-70",
           )}
         >
@@ -95,9 +95,9 @@ export function MessageInput({
               disabled={!canSend}
               onClick={submit}
               className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-300",
                 canSend
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  ? "bg-primary text-primary-foreground hover:bg-primary hover:scale-105 active:scale-95 hover:shadow-[0_0_12px_rgba(var(--primary),0.4)]"
                   : "bg-muted text-muted-foreground",
               )}
             >

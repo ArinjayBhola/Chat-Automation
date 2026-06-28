@@ -28,12 +28,12 @@
   }
 
   .dark {
-    --background: 240 12% 8%;
+    --background: 240 20% 6%;
     --foreground: 240 14% 96%;
-    --card: 240 11% 11%;
+    --card: 240 15% 9%;
     --card-foreground: 240 14% 96%;
-    --surface: 240 11% 10%;
-    --primary: 243 80% 70%;
+    --surface: 240 15% 8%;
+    --primary: 255 85% 65%;
     --primary-foreground: 240 30% 10%;
     --secondary: 240 8% 17%;
     --secondary-foreground: 240 14% 96%;
