@@ -9,7 +9,16 @@ import type { WorkflowEdge, WorkflowNode } from "@/lib/types/workflow";
 
 export const workflowNodeSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(["trigger", "tool", "condition", "loop", "transform", "delay"]),
+  type: z.enum([
+    "trigger",
+    "tool",
+    "condition",
+    "loop",
+    "transform",
+    "delay",
+    "approval",
+    "end",
+  ]),
   position: z.object({ x: z.number(), y: z.number() }),
   data: z
     .object({ label: z.string(), description: z.string().optional() })
@@ -20,6 +29,8 @@ export const workflowEdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
+  sourceHandle: z.string().nullable().optional(),
+  targetHandle: z.string().nullable().optional(),
   data: z.record(z.string(), z.unknown()).optional(),
 });
 

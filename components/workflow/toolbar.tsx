@@ -1,0 +1,177 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Loader2,
+  Play,
+  Save,
+  Upload,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { useWorkflowStore } from "@/lib/stores/workflow-store";
+
+type Note = { kind: "ok" | "err"; text: string } | null;
+
+export function WorkflowToolbar() {
+  const meta = useWorkflowStore((s) => s.meta);
+  const dirty = useWorkflowStore((s) => s.dirty);
+  const saving = useWorkflowStore((s) => s.saving);
+  const setMeta = useWorkflowStore((s) => s.setMeta);
+  const save = useWorkflowStore((s) => s.save);
+  const publish = useWorkflowStore((s) => s.publish);
+  const test = useWorkflowStore((s) => s.test);
+
+  const [busy, setBusy] = useState<"save" | "test" | "publish" | null>(null);
+  const [note, setNote] = useState<Note>(null);
+
+  if (!meta) {
+    return (
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b bg-card px-4">
+        <BackLink />
+        <span className="text-sm text-muted-foreground">
+          Select or create a workflow to start building.
+        </span>
+      </div>
+    );
+  }
+
+  async function run(kind: "save" | "test" | "publish") {
+    setBusy(kind);
+    setNote(null);
+    try {
+      if (kind === "save") {
+        const ok = await save();
+        setNote(
+          ok
+            ? { kind: "ok", text: "Saved." }
+            : { kind: "err", text: "Could not save." },
+        );
+      } else if (kind === "test") {
+        const result = await test();
+        if (!result) {
+          setNote({ kind: "err", text: "Test failed to run." });
+        } else if (result.ok) {
+          setNote({
+            kind: "ok",
+            text: `Looks valid: ${result.nodeCount} nodes, ${result.edgeCount} connections.`,
+          });
+        } else {
+          setNote({ kind: "err", text: result.issues[0] ?? "Validation issues found." });
+        }
+      } else {
+        const res = await publish();
+        setNote(
+          res.ok
+            ? { kind: "ok", text: "Published." }
+            : { kind: "err", text: res.error ?? "Publish failed." },
+        );
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-card px-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <BackLink />
+        <div className="min-w-0">
+          <Input
+            value={meta.name}
+            onChange={(e) => setMeta({ name: e.target.value })}
+            className="h-8 border-transparent bg-transparent px-1 text-sm font-semibold shadow-none hover:border-input focus-visible:border-input"
+          />
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-[11px] text-muted-foreground">
+              v{meta.version}
+            </span>
+            {meta.isPublished ? (
+              <Badge variant="success">
+                <CheckCircle2 className="h-3 w-3" />
+                Published
+              </Badge>
+            ) : (
+              <Badge variant="outline">Draft</Badge>
+            )}
+            {dirty && <Badge variant="warning">Unsaved</Badge>}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {note && (
+          <span
+            className={cn(
+              "max-w-[16rem] truncate text-xs",
+              note.kind === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
+            )}
+          >
+            {note.text}
+          </span>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={busy !== null || saving}
+          onClick={() => run("save")}
+        >
+          {busy === "save" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          Save
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={busy !== null}
+          onClick={() => run("test")}
+        >
+          {busy === "test" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
+          Test
+        </Button>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          disabled={busy !== null}
+          onClick={() => run("publish")}
+        >
+          {busy === "publish" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+          Publish
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function BackLink() {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 text-muted-foreground"
+    >
+      <Link href="/chat" aria-label="Back to chat">
+        <ArrowLeft className="h-4 w-4" />
+      </Link>
+    </Button>
+  );
+}

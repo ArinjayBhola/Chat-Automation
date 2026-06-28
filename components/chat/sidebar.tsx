@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { LogOut, PanelLeftClose, Plus, Settings, X } from "lucide-react";
+import {
+  LogOut,
+  PanelLeftClose,
+  Plus,
+  Settings,
+  Workflow,
+  X,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { usePathname } from "next/navigation";
@@ -127,6 +134,17 @@ export function Sidebar({
           </div>
           <ThemeToggle />
         </div>
+
+        <Button
+          asChild
+          variant="ghost"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <Link href="/workflows">
+            <Workflow className="h-4 w-4" />
+            Workflows
+          </Link>
+        </Button>
 
         <Button
           asChild

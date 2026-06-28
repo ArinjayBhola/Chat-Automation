@@ -17,18 +17,108 @@ export type WorkflowNodeType =
   | "condition"
   | "loop"
   | "transform"
-  | "delay";
+  | "delay"
+  | "approval"
+  | "end";
+
+// ---------------------------------------------------------------------------
+// Per-node configuration shapes
+// ---------------------------------------------------------------------------
+export interface TriggerConfig {
+  type: "schedule" | "webhook" | "manual";
+  scheduleId?: string;
+  webhookUrl?: string;
+  description: string;
+}
+
+export type ToolName = "gmail" | "drive" | "docs" | "calendar" | "notion";
+
+export interface ToolConfig {
+  toolName: ToolName;
+  action: string; // e.g. "send_email", "search_files"
+  parameters: Record<string, unknown>;
+  /** Map node inputs from workflow variables. */
+  inputMapping?: Record<string, string>;
+}
+
+export type ConditionOperator =
+  | "=="
+  | "!="
+  | ">"
+  | "<"
+  | "includes"
+  | "exists";
+
+export interface ConditionRule {
+  variable: string;
+  operator: ConditionOperator;
+  value: string;
+}
+
+export interface ConditionConfig {
+  conditions: ConditionRule[];
+  combineWith: "AND" | "OR";
+}
+
+export interface LoopConfig {
+  array: string; // variable name containing the array
+  itemVariableName: string; // name bound to each item
+  maxIterations: number;
+}
+
+export interface DelayConfig {
+  duration: number;
+  unit: "seconds" | "minutes" | "hours" | "days";
+}
+
+export interface TransformRule {
+  outputVariable: string;
+  expression: string; // JS expression
+}
+
+export interface TransformConfig {
+  transformations: TransformRule[];
+  language: "javascript";
+}
+
+export interface ApprovalConfig {
+  approvers: string[];
+  timeout?: number; // minutes
+  message: string;
+}
+
+export interface EndConfig {
+  status?: "success" | "failed";
+  note?: string;
+}
+
+export type NodeConfig =
+  | TriggerConfig
+  | ToolConfig
+  | ConditionConfig
+  | LoopConfig
+  | DelayConfig
+  | TransformConfig
+  | ApprovalConfig
+  | EndConfig
+  | Record<string, never>;
+
+/** The `data` payload carried by every node in the React Flow graph. */
+export interface WorkflowNodeData {
+  label: string;
+  description?: string;
+  config?: NodeConfig;
+  inputs?: string[];
+  outputs?: string[];
+  [key: string]: unknown;
+}
 
 export interface WorkflowNode {
-  /** Stable UUID for the node, generated client-side in the builder. */
+  /** Stable id for the node, generated client-side in the builder. */
   id: string;
   type: WorkflowNodeType;
   position: { x: number; y: number };
-  data: {
-    label: string;
-    description?: string;
-    [key: string]: unknown;
-  };
+  data: WorkflowNodeData;
 }
 
 export interface WorkflowEdge {
@@ -37,7 +127,14 @@ export interface WorkflowEdge {
   source: string;
   /** Target node id. */
   target: string;
-  data?: Record<string, unknown>;
+  /** Source/target handle ids (used by branching nodes like condition). */
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+  data?: {
+    label?: string;
+    condition?: string;
+    [key: string]: unknown;
+  };
 }
 
 // ---------------------------------------------------------------------------
