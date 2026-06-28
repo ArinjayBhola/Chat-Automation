@@ -31,13 +31,16 @@ export function WorkflowBuilder({
     try {
       const res = await fetch("/api/workflows?limit=100&sortBy=updatedAt");
       const data = await res.json();
-      const rows = (data.workflows ?? []) as WorkflowListItem[];
+      const rows = (data.workflows ?? []) as (WorkflowListItem & {
+        createdAt: string;
+      })[];
       setWorkflows(
         rows.map((w) => ({
           id: w.id,
           name: w.name,
           description: w.description ?? null,
           isPublished: w.isPublished,
+          createdAt: w.createdAt,
         })),
       );
     } catch {

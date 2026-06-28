@@ -28,6 +28,7 @@ export function ChatInterface({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [chats, setChats] = useState<ChatListItem[]>([]);
+  const [chatsLoading, setChatsLoading] = useState(true);
 
   const {
     messages,
@@ -49,6 +50,8 @@ export function ChatInterface({
       setChats(data.chats ?? []);
     } catch {
       /* ignore */
+    } finally {
+      setChatsLoading(false);
     }
   }, []);
 
@@ -107,6 +110,42 @@ export function ChatInterface({
     [refreshChats],
   );
 
+  const handlePinChat = useCallback(
+    async (id: string, pinned: boolean) => {
+      const pinnedAt = pinned ? new Date().toISOString() : null;
+      setChats((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, pinnedAt } : c)),
+      );
+      try {
+        await fetch(`/api/chat/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pinned }),
+        });
+      } finally {
+        refreshChats();
+      }
+    },
+    [refreshChats],
+  );
+
+  const handleArchiveChat = useCallback(
+    async (id: string) => {
+      setChats((prev) => prev.filter((c) => c.id !== id));
+      if (id === chatId) reset();
+      try {
+        await fetch(`/api/chat/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ archived: true }),
+        });
+      } finally {
+        refreshChats();
+      }
+    },
+    [chatId, reset, refreshChats],
+  );
+
   const activeTitle = chats.find((c) => c.id === chatId)?.title ?? "New chat";
 
   return (
@@ -114,10 +153,13 @@ export function ChatInterface({
       sidebar={{
         user,
         chats,
+        loading: chatsLoading,
         activeChatId: chatId,
         onSelectChat: handleSelectChat,
         onDeleteChat: handleDeleteChat,
         onRenameChat: handleRenameChat,
+        onPinChat: handlePinChat,
+        onArchiveChat: handleArchiveChat,
         onNewChat: reset,
       }}
     >

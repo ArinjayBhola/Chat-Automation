@@ -135,6 +135,7 @@ export const chats = pgTable(
       .notNull()
       .defaultNow(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
   },
   (t) => ({
     userIdx: index("chats_user_idx").on(t.userId),

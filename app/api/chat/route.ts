@@ -39,6 +39,7 @@ export async function GET() {
       id: c.id,
       title: c.title,
       updatedAt: c.updatedAt,
+      pinnedAt: c.pinnedAt,
     })),
   });
 }

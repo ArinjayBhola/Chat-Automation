@@ -4,25 +4,26 @@
 
 @layer base {
   :root {
-    /* Calm workspace — refined neutral slate base, quiet indigo accent. */
-    --background: 240 20% 99%;
-    --foreground: 240 10% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 12%;
+    /* Calm workspace — warm neutral base, quiet indigo accent. Softened off
+       the pure-white brights so it's easier on the eyes. */
+    --background: 38 28% 96%;
+    --foreground: 30 9% 14%;
+    --card: 40 33% 98.5%;
+    --card-foreground: 30 9% 14%;
     /* A subtly distinct surface for rails/panels (sidebar, composer). */
-    --surface: 240 18% 97.5%;
+    --surface: 38 24% 94.5%;
     --primary: 243 70% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 14% 96%;
-    --secondary-foreground: 240 10% 18%;
-    --muted: 240 14% 96%;
-    --muted-foreground: 240 5% 45%;
-    --accent: 240 14% 94%;
-    --accent-foreground: 240 10% 14%;
+    --secondary: 38 20% 92.5%;
+    --secondary-foreground: 30 9% 20%;
+    --muted: 38 20% 92.5%;
+    --muted-foreground: 32 6% 42%;
+    --accent: 38 22% 90.5%;
+    --accent-foreground: 30 9% 16%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 12% 90%;
-    --input: 240 12% 88%;
+    --border: 36 16% 87%;
+    --input: 36 16% 85%;
     --ring: 243 70% 58%;
     --radius: 0.75rem;
   }
@@ -70,5 +71,29 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: hsl(var(--border));
     border-radius: 9999px;
+  }
+
+  /* Overlay scrollbar: thin, hidden when idle, fades in on hover/scroll. */
+  .scrollbar-overlay {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .scrollbar-overlay::-webkit-scrollbar {
+    width: 8px;
+  }
+  .scrollbar-overlay::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.2s ease;
+  }
+  .scrollbar-overlay:hover,
+  .scrollbar-overlay:focus-within {
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-overlay:hover::-webkit-scrollbar-thumb,
+  .scrollbar-overlay:focus-within::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
   }
 }

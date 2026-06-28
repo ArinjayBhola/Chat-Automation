@@ -1,139 +1,169 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { useState } from "react";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { ChevronDown, MessageSquarePlus, Pin, SearchX } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  filterChats,
+  groupChats,
+  type ChatListItem,
+} from "@/lib/chat-groups";
+import { ChatItem, type ChatActions } from "./chat-item";
 
-export type ChatListItem = {
+// Re-exported so existing imports (`@/components/chat/chat-history`) keep working.
+export type { ChatListItem } from "@/lib/chat-groups";
+export type { ChatActions } from "./chat-item";
+
+function Section({
+  id,
+  label,
+  icon,
+  chats,
+  activeChatId,
+  actions,
+  collapsed,
+  onToggle,
+}: {
   id: string;
-  title: string;
-  updatedAt: string;
-};
+  label: string;
+  icon?: React.ReactNode;
+  chats: ChatListItem[];
+  activeChatId?: string;
+  actions: ChatActions;
+  collapsed: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const [listRef] = useAutoAnimate<HTMLUListElement>();
+
+  return (
+    <section className="space-y-1">
+      <button
+        type="button"
+        onClick={() => onToggle(id)}
+        aria-expanded={!collapsed}
+        className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 shrink-0 transition-transform duration-200",
+            collapsed && "-rotate-90",
+          )}
+        />
+        {icon}
+        <span>{label}</span>
+        <span className="ml-auto tabular-nums text-muted-foreground/70">
+          {chats.length}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <ul ref={listRef} className="space-y-0.5">
+          {chats.map((chat) => (
+            <ChatItem
+              key={chat.id}
+              chat={chat}
+              active={chat.id === activeChatId}
+              actions={actions}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export function ChatHistory({
   chats,
   activeChatId,
-  onSelect,
-  onDelete,
-  onRename,
+  query,
+  actions,
+  onNewChat,
 }: {
   chats: ChatListItem[];
   activeChatId?: string;
-  onSelect: (id: string) => void;
-  onDelete: (id: string) => void;
-  onRename: (id: string, title: string) => void;
+  query: string;
+  actions: ChatActions;
+  onNewChat: () => void;
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [containerRef] = useAutoAnimate<HTMLDivElement>();
 
-  useEffect(() => {
-    if (editingId) inputRef.current?.select();
-  }, [editingId]);
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
-  function startEdit(chat: ChatListItem) {
-    setEditingId(chat.id);
-    setDraft(chat.title);
+  // Empty state: no conversations at all (and no active search).
+  if (chats.length === 0 && !query.trim()) {
+    return (
+      <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl border bg-card text-muted-foreground">
+          <MessageSquarePlus className="h-5 w-5" />
+        </span>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">
+            No conversations yet
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Start a chat and your history will show up here.
+          </p>
+        </div>
+        <Button size="sm" className="gap-1.5" onClick={onNewChat}>
+          <MessageSquarePlus className="h-4 w-4" />
+          New chat
+        </Button>
+      </div>
+    );
   }
 
-  function commit() {
-    if (editingId) {
-      const next = draft.trim();
-      if (next) onRename(editingId, next);
-    }
-    setEditingId(null);
+  const filtered = filterChats(chats, query);
+
+  // No search matches.
+  if (filtered.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+        <SearchX className="h-5 w-5 text-muted-foreground" />
+        <p className="text-xs text-muted-foreground">
+          No conversations match &ldquo;{query.trim()}&rdquo;.
+        </p>
+      </div>
+    );
   }
+
+  const { pinned, groups } = groupChats(filtered);
 
   return (
-    <div className="space-y-1">
-      <h2 className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Recent
-      </h2>
-
-      {chats.length === 0 ? (
-        <p className="rounded-lg px-2 py-3 text-center text-xs text-muted-foreground">
-          No conversations yet.
-        </p>
-      ) : (
-        <ul className="space-y-0.5">
-          {chats.map((chat) => {
-            const active = chat.id === activeChatId;
-            const editing = editingId === chat.id;
-            return (
-              <li
-                key={chat.id}
-                className={cn(
-                  "group relative flex items-center rounded-lg text-sm transition-colors",
-                  active
-                    ? "bg-accent text-accent-foreground"
-                    : "text-foreground/80 hover:bg-accent/60",
-                )}
-              >
-                {active && (
-                  <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
-                )}
-
-                {editing ? (
-                  <div className="flex w-full items-center gap-1 px-2 py-1.5">
-                    <input
-                      ref={inputRef}
-                      value={draft}
-                      maxLength={80}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commit();
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                      className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                    <button
-                      className="rounded-md p-1 text-muted-foreground hover:text-emerald-600"
-                      aria-label="Save name"
-                      onClick={commit}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      className="rounded-md p-1 text-muted-foreground hover:text-destructive"
-                      aria-label="Cancel rename"
-                      onClick={() => setEditingId(null)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left"
-                      onClick={() => onSelect(chat.id)}
-                      onDoubleClick={() => startEdit(chat)}
-                    >
-                      <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{chat.title}</span>
-                    </button>
-                    <div className="mr-1 flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                      <button
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-background hover:text-foreground"
-                        aria-label="Rename chat"
-                        onClick={() => startEdit(chat)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-background hover:text-destructive"
-                        aria-label="Delete chat"
-                        onClick={() => onDelete(chat.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+    <div ref={containerRef} className="space-y-4">
+      {pinned.length > 0 && (
+        <Section
+          id="pinned"
+          label="Pinned"
+          icon={<Pin className="h-3 w-3 shrink-0" />}
+          chats={pinned}
+          activeChatId={activeChatId}
+          actions={actions}
+          collapsed={collapsed.has("pinned")}
+          onToggle={toggle}
+        />
       )}
+
+      {groups.map((group) => (
+        <Section
+          key={group.id}
+          id={group.id}
+          label={group.label}
+          chats={group.chats}
+          activeChatId={activeChatId}
+          actions={actions}
+          collapsed={collapsed.has(group.id)}
+          onToggle={toggle}
+        />
+      ))}
     </div>
   );
 }

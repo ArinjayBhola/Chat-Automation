@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Sidebar } from "@/components/chat/sidebar";
 import type { ChatListItem } from "@/components/chat/chat-history";
 
@@ -14,11 +14,16 @@ export type AppSidebarData = {
   user: SidebarUser;
   chats: ChatListItem[];
   activeChatId?: string;
+  loading?: boolean;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
+  onPinChat: (id: string, pinned: boolean) => void;
+  onArchiveChat: (id: string) => void;
   onNewChat: () => void;
 };
+
+const COLLAPSED_KEY = "relay:sidebar-collapsed";
 
 /**
  * Shared two-pane layout (collapsible sidebar + main column) used by both the
@@ -37,12 +42,38 @@ export function AppShell({
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
+  // Restore the desktop rail preference.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(COLLAPSED_KEY) === "1") setCollapsed(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const setCollapsedPersist = useCallback((value: boolean) => {
+    setCollapsed(value);
+    try {
+      localStorage.setItem(COLLAPSED_KEY, value ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const toggleSidebar = useCallback(() => {
     if (
       typeof window !== "undefined" &&
       window.matchMedia("(min-width: 768px)").matches
     ) {
-      setCollapsed((c) => !c);
+      setCollapsed((c) => {
+        const next = !c;
+        try {
+          localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
     } else {
       setOpen((o) => !o);
     }
@@ -61,7 +92,8 @@ export function AppShell({
         open={open}
         collapsed={collapsed}
         onClose={() => setOpen(false)}
-        onCollapse={() => setCollapsed(true)}
+        onCollapse={() => setCollapsedPersist(true)}
+        onExpand={() => setCollapsedPersist(false)}
         {...sidebar}
         onSelectChat={(id) => {
           setOpen(false);

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
+  ArchiveRestore,
   ArrowLeft,
+  Inbox,
   KeyRound,
   Loader2,
   LogOut,
@@ -26,7 +28,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { ToolConnections } from "@/components/chat/tool-connections";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { cn } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 
 type Initial = {
   name: string;
@@ -118,6 +120,8 @@ export function SettingsView({ initial }: { initial: Initial }) {
               <ToolConnections />
             </CardContent>
           </Card>
+
+          <ArchivedSection />
 
           <DataSection />
 
@@ -344,6 +348,126 @@ function PasswordSection({
             {hasPassword ? "Update password" : "Create password"}
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Archived conversations (restore / delete)
+// ---------------------------------------------------------------------------
+type ArchivedChat = {
+  id: string;
+  title: string;
+  updatedAt: string;
+};
+
+function ArchivedSection() {
+  const [chats, setChats] = useState<ArchivedChat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/chat/archived");
+      if (!res.ok) return;
+      const data: { chats: ArchivedChat[] } = await res.json();
+      setChats(data.chats ?? []);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function unarchive(id: string) {
+    setBusyId(id);
+    setChats((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await fetch(`/api/chat/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: false }),
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(id: string) {
+    setBusyId(id);
+    setChats((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await fetch(`/api/chat/${id}`, { method: "DELETE" });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Archived conversations</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Archived chats are hidden from the sidebar. Restore one to bring it
+          back, or delete it permanently.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-2">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/60" />
+            ))}
+          </div>
+        ) : chats.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <Inbox className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              No archived conversations.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {chats.map((c) => (
+              <li
+                key={c.id}
+                className="flex items-center gap-3 px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{c.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Updated {timeAgo(c.updatedAt)}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={busyId === c.id}
+                  onClick={() => unarchive(c.id)}
+                >
+                  <ArchiveRestore className="h-4 w-4" />
+                  <span className="hidden sm:inline">Restore</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Delete ${c.title}`}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:text-destructive"
+                  disabled={busyId === c.id}
+                  onClick={() => remove(c.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

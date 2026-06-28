@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import {
-  archiveChat,
+  deleteChat,
   getChatForUser,
   getChatMessages,
   getPendingApprovalsForChat,
+  pinChat,
   renameChat,
+  setChatArchived,
 } from "@/lib/db-queries";
 import { sanitizeLine } from "@/lib/sanitize";
 import { OP_KEY } from "@/lib/agent/ops";
@@ -95,7 +97,8 @@ export async function GET(
 }
 
 /**
- * PATCH /api/chat/[chatId] — rename a chat.
+ * PATCH /api/chat/[chatId] — rename, pin/unpin, or archive/restore a chat.
+ * Accepts any of `{ title?, pinned?, archived? }`.
  */
 export async function PATCH(
   req: NextRequest,
@@ -106,22 +109,51 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { chatId } = await ctx.params;
+  const userId = session.user.id;
 
   const body = await req.json().catch(() => ({}));
-  const title = sanitizeLine(String(body?.title ?? ""));
-  if (!title) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  const hasTitle = typeof body?.title === "string";
+  const hasPinned = typeof body?.pinned === "boolean";
+  const hasArchived = typeof body?.archived === "boolean";
+
+  if (!hasTitle && !hasPinned && !hasArchived) {
+    return NextResponse.json(
+      { error: "Nothing to update" },
+      { status: 400 },
+    );
   }
 
-  const updated = await renameChat(chatId, session.user.id, title);
-  if (!updated) {
-    return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+  if (hasPinned) {
+    const row = await pinChat(chatId, userId, body.pinned);
+    if (!row) {
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    }
   }
-  return NextResponse.json({ ok: true, title: updated });
+
+  if (hasArchived) {
+    const row = await setChatArchived(chatId, userId, body.archived);
+    if (!row) {
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    }
+  }
+
+  if (hasTitle) {
+    const title = sanitizeLine(String(body.title));
+    if (!title) {
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    }
+    const updated = await renameChat(chatId, userId, title);
+    if (!updated) {
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, title: updated });
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 /**
- * DELETE /api/chat/[chatId] — soft-delete (archive) a chat.
+ * DELETE /api/chat/[chatId] — permanently delete a chat (and its messages).
  */
 export async function DELETE(
   _req: NextRequest,
@@ -132,6 +164,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { chatId } = await ctx.params;
-  await archiveChat(chatId, session.user.id);
+  await deleteChat(chatId, session.user.id);
   return NextResponse.json({ ok: true });
 }

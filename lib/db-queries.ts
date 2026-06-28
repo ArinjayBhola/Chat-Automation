@@ -363,6 +363,56 @@ export async function archiveChat(chatId: string, userId: string) {
     .where(and(eq(chats.id, chatId), eq(chats.userId, userId)));
 }
 
+/** Archive or restore a chat the user owns. */
+export async function setChatArchived(
+  chatId: string,
+  userId: string,
+  archived: boolean,
+) {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .update(chats)
+    .set({ archivedAt: archived ? new Date() : null })
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+    .returning({ id: chats.id });
+  return row ?? null;
+}
+
+/** Pin or unpin a chat the user owns. Returns the row or null when not found. */
+export async function pinChat(
+  chatId: string,
+  userId: string,
+  pinned: boolean,
+) {
+  if (!isDbEnabled || !db) return null;
+  const [row] = await db
+    .update(chats)
+    .set({ pinnedAt: pinned ? new Date() : null })
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+    .returning({ id: chats.id, pinnedAt: chats.pinnedAt });
+  return row ?? null;
+}
+
+/** Permanently delete one chat the user owns (cascades messages/approvals). */
+export async function deleteChat(chatId: string, userId: string) {
+  if (!isDbEnabled || !db) return false;
+  const deleted = await db
+    .delete(chats)
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+    .returning({ id: chats.id });
+  return deleted.length > 0;
+}
+
+/** List the user's archived chats, most recently updated first. */
+export async function listArchivedChats(userId: string) {
+  if (!isDbEnabled || !db) return [];
+  return db
+    .select()
+    .from(chats)
+    .where(and(eq(chats.userId, userId), isNotNull(chats.archivedAt)))
+    .orderBy(desc(chats.updatedAt));
+}
+
 export async function getChatMessages(chatId: string) {
   if (!isDbEnabled || !db) return [];
   return db

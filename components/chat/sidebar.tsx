@@ -1,23 +1,22 @@
 "use client";
 
-import Link from "next/link";
-import { signOut } from "next-auth/react";
-import {
-  LayoutDashboard,
-  LogOut,
-  PanelLeftClose,
-  Plus,
-  Settings,
-  Workflow,
-  X,
-} from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useMemo, useState, type ReactNode } from "react";
+import { PanelLeftClose, PanelLeftOpen, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { usePathname } from "next/navigation";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Logo } from "@/components/brand/logo";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { ChatHistory, type ChatListItem } from "./chat-history";
+import { groupChats, type ChatListItem } from "@/lib/chat-groups";
+import { ChatHistory } from "./chat-history";
+import type { ChatActions } from "./chat-item";
+import { SidebarSearch } from "./sidebar-search";
+import { SidebarSkeleton } from "./sidebar-skeleton";
+import { ProfileMenu, initials } from "./profile-menu";
 
 type SidebarUser = {
   name?: string | null;
@@ -28,55 +27,83 @@ type SidebarUser = {
 type Props = {
   open: boolean;
   collapsed: boolean;
+  loading?: boolean;
   onClose: () => void;
   onCollapse: () => void;
+  onExpand: () => void;
   user: SidebarUser;
   chats: ChatListItem[];
   activeChatId?: string;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
+  onPinChat: (id: string, pinned: boolean) => void;
+  onArchiveChat: (id: string) => void;
   onNewChat: () => void;
 };
 
-function initials(name?: string | null) {
-  if (!name) return "U";
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+function RailIcon({
+  label,
+  onClick,
+  children,
+  className,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        onClick={onClick}
+        aria-label={label}
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+          className,
+        )}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 export function Sidebar({
   open,
   collapsed,
+  loading,
   onClose,
   onCollapse,
+  onExpand,
   user,
   chats,
   activeChatId,
   onSelectChat,
   onDeleteChat,
   onRenameChat,
+  onPinChat,
+  onArchiveChat,
   onNewChat,
 }: Props) {
-  const pathname = usePathname();
-  const onSettings = pathname === "/settings";
+  const [query, setQuery] = useState("");
 
-  return (
-    <aside
-      className={cn(
-        "absolute inset-y-0 left-0 z-20 flex w-72 shrink-0 flex-col overflow-hidden border-r bg-surface transition-all duration-200 ease-out md:static",
-        open ? "translate-x-0 shadow-xl md:shadow-none" : "-translate-x-full",
-        collapsed
-          ? "md:w-0 md:-translate-x-full md:border-r-0"
-          : "md:w-72 md:translate-x-0",
-      )}
-    >
-      {/* Brand + collapse/close */}
+  const actions: ChatActions = useMemo(
+    () => ({
+      onSelect: onSelectChat,
+      onRename: onRenameChat,
+      onDelete: onDeleteChat,
+      onArchive: onArchiveChat,
+      onPin: onPinChat,
+    }),
+    [onSelectChat, onRenameChat, onDeleteChat, onArchiveChat, onPinChat],
+  );
+
+  const pinned = useMemo(() => groupChats(chats).pinned, [chats]);
+
+  const fullContent = (
+    <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
         <Logo badgeClassName="h-7 w-7" />
         <Button
@@ -100,92 +127,94 @@ export function Sidebar({
       </div>
 
       <div className="px-3">
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2 border-dashed bg-card font-medium text-foreground/90 hover:border-primary/40 hover:text-foreground"
-          onClick={onNewChat}
-        >
-          <Plus className="h-4 w-4 text-primary" />
+        <Button className="w-full justify-start gap-2" onClick={onNewChat}>
+          <Plus className="h-4 w-4" />
           New chat
         </Button>
       </div>
 
-      {/* Scrollable middle: chat history */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4">
+      <div className="px-3 pt-3">
+        <SidebarSearch value={query} onChange={setQuery} />
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-overlay px-3 py-4">
         <ChatHistory
           chats={chats}
           activeChatId={activeChatId}
-          onSelect={onSelectChat}
-          onDelete={onDeleteChat}
-          onRename={onRenameChat}
+          query={query}
+          actions={actions}
+          onNewChat={onNewChat}
         />
       </div>
 
-      {/* Footer: account + settings + sign out */}
-      <div className="shrink-0 space-y-1 border-t p-3">
-        <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
-          <Avatar className="h-8 w-8 border">
-            {user.image && (
-              <AvatarImage src={user.image} alt={user.name ?? "User"} />
-            )}
-            <AvatarFallback>{initials(user.name)}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user.name ?? "User"}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {user.email ?? "No email"}
-            </p>
-          </div>
-          <ThemeToggle />
+      <div className="shrink-0 border-t p-3">
+        <ProfileMenu user={user} side="top" align="start" />
+      </div>
+    </div>
+  );
+
+  const railContent = (
+    <TooltipProvider delayDuration={200}>
+      <div className="flex h-full flex-col items-center gap-2 py-3">
+        <RailIcon label="Expand sidebar" onClick={onExpand}>
+          <PanelLeftOpen className="h-4 w-4" />
+        </RailIcon>
+        <RailIcon
+          label="New chat"
+          onClick={onNewChat}
+          className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground"
+        >
+          <Plus className="h-4 w-4" />
+        </RailIcon>
+
+        <div className="my-1 h-px w-8 bg-border" />
+
+        <div className="flex w-full flex-1 flex-col items-center gap-1 overflow-y-auto scrollbar-overlay">
+          {pinned.map((chat) => {
+            const active = chat.id === activeChatId;
+            return (
+              <Tooltip key={chat.id}>
+                <TooltipTrigger
+                  onClick={() => onSelectChat(chat.id)}
+                  aria-label={chat.title}
+                  className={cn(
+                    "inline-flex h-9 w-9 items-center justify-center rounded-lg text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    active
+                      ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  )}
+                >
+                  {initials(chat.title)}
+                </TooltipTrigger>
+                <TooltipContent side="right">{chat.title}</TooltipContent>
+              </Tooltip>
+            );
+          })}
         </div>
 
-        <Button
-          asChild
-          variant="ghost"
-          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <Link href="/workflows">
-            <Workflow className="h-4 w-4" />
-            Workflows
-          </Link>
-        </Button>
-
-        <Button
-          asChild
-          variant="ghost"
-          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <Link href="/dashboard">
-            <LayoutDashboard className="h-4 w-4" />
-            Dashboard
-          </Link>
-        </Button>
-
-        <Button
-          asChild
-          variant="ghost"
-          className={cn(
-            "w-full justify-start gap-2",
-            onSettings
-              ? "bg-accent text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Link href="/settings">
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:text-destructive"
-          onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-        >
-          <LogOut className="h-4 w-4" />
-          Sign out
-        </Button>
+        <ProfileMenu user={user} compact side="right" align="end" />
       </div>
+    </TooltipProvider>
+  );
+
+  return (
+    <aside
+      className={cn(
+        "absolute inset-y-0 left-0 z-20 flex w-72 shrink-0 flex-col overflow-hidden border-r bg-surface/80 backdrop-blur-xl transition-all duration-200 ease-out md:static",
+        open ? "translate-x-0 shadow-xl md:shadow-none" : "-translate-x-full",
+        collapsed ? "md:w-16 md:translate-x-0" : "md:w-72 md:translate-x-0",
+      )}
+    >
+      {loading && !collapsed ? (
+        <SidebarSkeleton />
+      ) : collapsed ? (
+        <>
+          <div className="hidden h-full w-full md:block">{railContent}</div>
+          <div className="block h-full w-full md:hidden">{fullContent}</div>
+        </>
+      ) : (
+        fullContent
+      )}
     </aside>
   );
 }
