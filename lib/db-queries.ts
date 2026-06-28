@@ -1,4 +1,16 @@
-import { and, asc, count, desc, eq, gte, ilike, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNotNull,
+  isNull,
+  lte,
+  sql,
+} from "drizzle-orm";
 import { db, isDbEnabled } from "./db";
 import {
   approvals,
@@ -644,17 +656,80 @@ export async function restoreWorkflowVersion(
 }
 
 // ---- schedules ------------------------------------------------------------
-export async function createWorkflowSchedule(
-  workflowId: string,
-  schedule: string,
-  timezone: string,
-): Promise<WorkflowScheduleRow | null> {
+export async function createWorkflowSchedule(input: {
+  workflowId: string;
+  schedule: string;
+  timezone: string;
+  name?: string | null;
+  description?: string | null;
+  nextRun?: Date | null;
+}): Promise<WorkflowScheduleRow | null> {
   if (!isDbEnabled || !db) return null;
   const [row] = await db
     .insert(workflowSchedules)
-    .values({ workflowId, schedule, timezone })
+    .values({
+      workflowId: input.workflowId,
+      schedule: input.schedule,
+      timezone: input.timezone,
+      name: input.name ?? null,
+      description: input.description ?? null,
+      nextRun: input.nextRun ?? null,
+    })
     .returning();
   return row ?? null;
+}
+
+/**
+ * Active schedules whose nextRun is now-or-past, joined with the owning
+ * workflow's user id and graph so the scheduler can run them in one query.
+ */
+export async function getDueSchedules(now: Date, limit = 25) {
+  if (!isDbEnabled || !db) return [];
+  return db
+    .select({
+      schedule: workflowSchedules,
+      userId: workflows.userId,
+      isPublished: workflows.isPublished,
+      nodes: workflows.nodes,
+      edges: workflows.edges,
+    })
+    .from(workflowSchedules)
+    .innerJoin(workflows, eq(workflowSchedules.workflowId, workflows.id))
+    .where(
+      and(
+        eq(workflowSchedules.isActive, true),
+        isNotNull(workflowSchedules.nextRun),
+        lte(workflowSchedules.nextRun, now),
+      ),
+    )
+    .orderBy(asc(workflowSchedules.nextRun))
+    .limit(limit);
+}
+
+/** Record the result of a scheduled run: bump stats, set lastRun + nextRun. */
+export async function recordScheduleOutcome(input: {
+  scheduleId: string;
+  ok: boolean;
+  nextRun: Date | null;
+  error?: string | null;
+}): Promise<void> {
+  if (!isDbEnabled || !db) return;
+  const set: Record<string, unknown> = {
+    lastRun: new Date(),
+    nextRun: input.nextRun,
+    totalRuns: sql`${workflowSchedules.totalRuns} + 1`,
+    lastError: input.ok ? null : (input.error ?? "Execution failed."),
+    updatedAt: new Date(),
+  };
+  if (input.ok) {
+    set.successfulRuns = sql`${workflowSchedules.successfulRuns} + 1`;
+  } else {
+    set.failedRuns = sql`${workflowSchedules.failedRuns} + 1`;
+  }
+  await db
+    .update(workflowSchedules)
+    .set(set)
+    .where(eq(workflowSchedules.id, input.scheduleId));
 }
 
 export async function getWorkflowSchedules(
@@ -685,6 +760,8 @@ export async function updateSchedule(
   updates: {
     schedule?: string;
     timezone?: string;
+    name?: string | null;
+    description?: string | null;
     isActive?: boolean;
     lastRun?: Date | null;
     nextRun?: Date | null;
@@ -696,6 +773,10 @@ export async function updateSchedule(
     .set({
       ...(updates.schedule !== undefined ? { schedule: updates.schedule } : {}),
       ...(updates.timezone !== undefined ? { timezone: updates.timezone } : {}),
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.description !== undefined
+        ? { description: updates.description }
+        : {}),
       ...(updates.isActive !== undefined ? { isActive: updates.isActive } : {}),
       ...(updates.lastRun !== undefined ? { lastRun: updates.lastRun } : {}),
       ...(updates.nextRun !== undefined ? { nextRun: updates.nextRun } : {}),

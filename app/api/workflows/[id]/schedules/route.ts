@@ -6,11 +6,13 @@ import {
   getWorkflow,
   getWorkflowSchedules,
 } from "@/lib/db-queries";
-import { isValidCron, isValidTimezone } from "@/lib/workflows/validation";
+import { isValidCron, isValidTimezone, nextRun } from "@/lib/workflows/cron";
 
 const createSchema = z.object({
   schedule: z.string().trim().min(1),
   timezone: z.string().trim().min(1).default("UTC"),
+  name: z.string().trim().max(100).optional(),
+  description: z.string().trim().max(500).optional(),
 });
 
 /**
@@ -69,11 +71,14 @@ export async function POST(
     return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
   }
 
-  const schedule = await createWorkflowSchedule(
-    id,
-    parsed.data.schedule,
-    parsed.data.timezone,
-  );
+  const schedule = await createWorkflowSchedule({
+    workflowId: id,
+    schedule: parsed.data.schedule,
+    timezone: parsed.data.timezone,
+    name: parsed.data.name,
+    description: parsed.data.description,
+    nextRun: nextRun(parsed.data.schedule, parsed.data.timezone),
+  });
   if (!schedule) {
     return NextResponse.json(
       { error: "Failed to create schedule." },

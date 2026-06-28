@@ -302,9 +302,16 @@ export const workflowSchedules = pgTable(
       .references(() => workflows.id, { onDelete: "cascade" }),
     schedule: text("schedule").notNull(), // cron expression
     timezone: text("timezone").notNull().default("UTC"),
+    name: text("name"),
+    description: text("description"),
     isActive: boolean("is_active").notNull().default(true),
     lastRun: timestamp("last_run", { withTimezone: true }),
     nextRun: timestamp("next_run", { withTimezone: true }),
+    // Run statistics, updated by the scheduler tick.
+    totalRuns: integer("total_runs").notNull().default(0),
+    successfulRuns: integer("successful_runs").notNull().default(0),
+    failedRuns: integer("failed_runs").notNull().default(0),
+    lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -315,6 +322,7 @@ export const workflowSchedules = pgTable(
   (t) => ({
     workflowIdx: index("workflow_schedules_workflow_idx").on(t.workflowId),
     activeIdx: index("workflow_schedules_active_idx").on(t.isActive),
+    nextRunIdx: index("workflow_schedules_next_run_idx").on(t.nextRun),
   }),
 );
 

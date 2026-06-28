@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  CalendarClock,
   CheckCircle2,
   Loader2,
   Play,
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useWorkflowStore } from "@/lib/stores/workflow-store";
+import { ScheduleDialog } from "./schedule-dialog";
 
 type Note = { kind: "ok" | "err"; text: string } | null;
 
@@ -29,6 +31,7 @@ export function WorkflowToolbar() {
 
   const [busy, setBusy] = useState<"save" | "test" | "publish" | null>(null);
   const [note, setNote] = useState<Note>(null);
+  const [showSchedules, setShowSchedules] = useState(false);
 
   if (!meta) {
     return (
@@ -78,6 +81,14 @@ export function WorkflowToolbar() {
   }
 
   return (
+    <>
+    {showSchedules && (
+      <ScheduleDialog
+        workflowId={meta.id}
+        published={meta.isPublished}
+        onClose={() => setShowSchedules(false)}
+      />
+    )}
     <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-card px-4">
       <div className="flex min-w-0 items-center gap-3">
         <BackLink />
@@ -144,6 +155,15 @@ export function WorkflowToolbar() {
           Test
         </Button>
         <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setShowSchedules(true)}
+        >
+          <CalendarClock className="h-4 w-4" />
+          Schedule
+        </Button>
+        <Button
           size="sm"
           className="gap-1.5"
           disabled={busy !== null}
@@ -158,6 +178,7 @@ export function WorkflowToolbar() {
         </Button>
       </div>
     </div>
+    </>
   );
 }
 

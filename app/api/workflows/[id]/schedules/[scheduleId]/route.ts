@@ -7,12 +7,14 @@ import {
   getWorkflowSchedule,
   updateSchedule,
 } from "@/lib/db-queries";
-import { isValidCron, isValidTimezone } from "@/lib/workflows/validation";
+import { isValidCron, isValidTimezone, nextRun } from "@/lib/workflows/cron";
 
 const updateSchema = z
   .object({
     schedule: z.string().trim().min(1).optional(),
     timezone: z.string().trim().min(1).optional(),
+    name: z.string().trim().max(100).nullable().optional(),
+    description: z.string().trim().max(500).nullable().optional(),
     isActive: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
@@ -35,7 +37,8 @@ async function authorize(
 }
 
 /**
- * PUT /api/workflows/[id]/schedules/[scheduleId] — update a schedule.
+ * PUT /api/workflows/[id]/schedules/[scheduleId] — update a schedule. Recomputes
+ * the next run time when the cron expression, timezone, or active state changes.
  */
 export async function PUT(
   req: NextRequest,
@@ -59,17 +62,35 @@ export async function PUT(
       { status: 400 },
     );
   }
-  if (parsed.data.schedule && !isValidCron(parsed.data.schedule)) {
+  const patch = parsed.data;
+  if (patch.schedule && !isValidCron(patch.schedule)) {
     return NextResponse.json(
       { error: "Invalid cron expression." },
       { status: 400 },
     );
   }
-  if (parsed.data.timezone && !isValidTimezone(parsed.data.timezone)) {
+  if (patch.timezone && !isValidTimezone(patch.timezone)) {
     return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
   }
 
-  const updated = await updateSchedule(scheduleId, parsed.data);
+  // Recompute next run if anything that affects the schedule changed.
+  const effSchedule = patch.schedule ?? guard.schedule.schedule;
+  const effTimezone = patch.timezone ?? guard.schedule.timezone;
+  const effActive = patch.isActive ?? guard.schedule.isActive;
+  const recompute =
+    patch.schedule !== undefined ||
+    patch.timezone !== undefined ||
+    patch.isActive !== undefined;
+  const nextRunAt = recompute
+    ? effActive
+      ? nextRun(effSchedule, effTimezone)
+      : null
+    : undefined;
+
+  const updated = await updateSchedule(scheduleId, {
+    ...patch,
+    ...(nextRunAt !== undefined ? { nextRun: nextRunAt } : {}),
+  });
   return NextResponse.json(updated);
 }
 
