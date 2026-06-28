@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Lora } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const lora = Lora({ subsets: ["latin"], variable: "--font-lora" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "Relay - AI assistant for Gmail, Drive, Docs, Calendar & Notion",
@@ -19,7 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${lora.className} min-h-screen antialiased text-[16px] font-medium tracking-tight`}>
+      <body className={`${inter.className} min-h-screen antialiased text-base font-medium tracking-tight`}>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -21,7 +21,7 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
   if (isUser) {
     return (
       <div className="flex animate-slide-up duration-500 flex-col items-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary/10 border border-primary/20 px-4 py-3 text-[15px] shadow-sm transition-all hover:shadow-md">
+        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary/10 border border-primary/20 px-4 py-3 text-base shadow-sm transition-all hover:shadow-md">
           <div className="whitespace-pre-wrap break-words leading-relaxed">
             {message.content}
           </div>
@@ -110,7 +110,7 @@ function AssistantText({ content }: { content: string }) {
 
   return (
     <div className="group relative">
-      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+      <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-foreground/90">
         {content}
       </div>
       <div className="mt-2 flex items-center gap-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
