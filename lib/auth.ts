@@ -88,7 +88,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger, session }) {
+      // Client-initiated `useSession().update({ name, email })` after a profile
+      // edit — refresh the token so the UI reflects changes without re-login.
+      if (trigger === "update" && session) {
+        const next = session as { name?: string; email?: string };
+        if (typeof next.name === "string") token.name = next.name;
+        if (typeof next.email === "string") token.email = next.email;
+        return token;
+      }
       if (user) {
         if (account?.provider === "google" && user.email) {
           const dbUser = await upsertUserFromOAuth({

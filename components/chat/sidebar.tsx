@@ -1,11 +1,15 @@
 "use client";
 
+import Link from "next/link";
+import { signOut } from "next-auth/react";
+import { LogOut, PanelLeftClose, Plus, Settings, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { usePathname } from "next/navigation";
+import { Logo } from "@/components/brand/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { ToolConnections } from "./tool-connections";
-import { ModelPicker } from "./model-picker";
 import { ChatHistory, type ChatListItem } from "./chat-history";
-import type { ModelChoice } from "@/lib/ai/models";
 
 type SidebarUser = {
   name?: string | null;
@@ -15,10 +19,10 @@ type SidebarUser = {
 
 type Props = {
   open: boolean;
+  collapsed: boolean;
+  onClose: () => void;
+  onCollapse: () => void;
   user: SidebarUser;
-  models: ModelChoice[];
-  modelId: string;
-  onModelChange: (id: string) => void;
   chats: ChatListItem[];
   activeChatId?: string;
   onSelectChat: (id: string) => void;
@@ -39,56 +43,115 @@ function initials(name?: string | null) {
 
 export function Sidebar({
   open,
+  collapsed,
+  onClose,
+  onCollapse,
   user,
-  models,
-  modelId,
-  onModelChange,
   chats,
   activeChatId,
   onSelectChat,
   onDeleteChat,
   onNewChat,
 }: Props) {
+  const pathname = usePathname();
+  const onSettings = pathname === "/settings";
+
   return (
     <aside
       className={cn(
-        "absolute inset-y-0 left-0 z-20 flex w-64 shrink-0 flex-col border-r bg-card transition-transform md:static md:translate-x-0",
-        open ? "translate-x-0" : "-translate-x-full",
+        "absolute inset-y-0 left-0 z-20 flex w-72 shrink-0 flex-col overflow-hidden border-r bg-surface transition-all duration-200 ease-out md:static",
+        open ? "translate-x-0 shadow-xl md:shadow-none" : "-translate-x-full",
+        collapsed
+          ? "md:w-0 md:-translate-x-full md:border-r-0"
+          : "md:w-72 md:translate-x-0",
       )}
     >
-      {/* Profile */}
-      <div className="border-b p-3">
-        <div className="flex items-center gap-3 rounded-lg border bg-background p-2.5">
-          <Avatar className="h-9 w-9">
-            {user.image && <AvatarImage src={user.image} alt={user.name ?? "User"} />}
-            <AvatarFallback>{initials(user.name)}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{user.name ?? "User"}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {user.email ?? "No email"}
-            </p>
-          </div>
-        </div>
+      {/* Brand + collapse/close */}
+      <div className="flex h-14 shrink-0 items-center justify-between px-4">
+        <Logo badgeClassName="h-7 w-7" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden h-8 w-8 text-muted-foreground md:inline-flex"
+          aria-label="Collapse sidebar"
+          onClick={onCollapse}
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 md:hidden"
+          aria-label="Close sidebar"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto scrollbar-thin p-3">
+      <div className="px-3">
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 border-dashed bg-card font-medium text-foreground/90 hover:border-primary/40 hover:text-foreground"
+          onClick={onNewChat}
+        >
+          <Plus className="h-4 w-4 text-primary" />
+          New chat
+        </Button>
+      </div>
+
+      {/* Scrollable middle: chat history */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4">
         <ChatHistory
           chats={chats}
           activeChatId={activeChatId}
           onSelect={onSelectChat}
           onDelete={onDeleteChat}
-          onNew={onNewChat}
         />
+      </div>
 
-        <ToolConnections />
-
-        <div>
-          <h2 className="px-1 pb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Model
-          </h2>
-          <ModelPicker models={models} value={modelId} onChange={onModelChange} />
+      {/* Footer: account + settings + sign out */}
+      <div className="shrink-0 space-y-1 border-t p-3">
+        <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+          <Avatar className="h-8 w-8 border">
+            {user.image && (
+              <AvatarImage src={user.image} alt={user.name ?? "User"} />
+            )}
+            <AvatarFallback>{initials(user.name)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{user.name ?? "User"}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {user.email ?? "No email"}
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
+
+        <Button
+          asChild
+          variant="ghost"
+          className={cn(
+            "w-full justify-start gap-2",
+            onSettings
+              ? "bg-accent text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Link href="/settings">
+            <Settings className="h-4 w-4" />
+            Settings
+          </Link>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:text-destructive"
+          onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+        >
+          <LogOut className="h-4 w-4" />
+          Sign out
+        </Button>
       </div>
     </aside>
   );

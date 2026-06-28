@@ -96,6 +96,52 @@ export async function createCredentialsUser(input: {
   return created;
 }
 
+/** Update editable profile fields (name and/or email). */
+export async function updateUserProfile(
+  userId: string,
+  patch: { name?: string | null; email?: string },
+): Promise<User | null> {
+  if (!isDbEnabled || !db) return null;
+  const [updated] = await db
+    .update(users)
+    .set({
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.email !== undefined ? { email: patch.email.toLowerCase() } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning();
+  return updated ?? null;
+}
+
+/** Set or replace the password hash for an account. */
+export async function setUserPassword(
+  userId: string,
+  passwordHash: string,
+): Promise<void> {
+  if (!isDbEnabled || !db) return;
+  await db
+    .update(users)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
+/** Permanently delete every chat (and, by cascade, messages/approvals). */
+export async function deleteAllUserChats(userId: string): Promise<number> {
+  if (!isDbEnabled || !db) return 0;
+  const deleted = await db
+    .delete(chats)
+    .where(eq(chats.userId, userId))
+    .returning({ id: chats.id });
+  return deleted.length;
+}
+
+/** Permanently delete the account and all data owned by it (cascade). */
+export async function deleteUser(userId: string): Promise<void> {
+  if (!isDbEnabled || !db) return;
+  await db.delete(users).where(eq(users.id, userId));
+}
+
 // ---- tool connections -----------------------------------------------------
 export async function getToolConnections(userId: string) {
   if (!isDbEnabled || !db) return [];

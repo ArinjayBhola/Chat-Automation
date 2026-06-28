@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, User as UserIcon } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { BrandMark } from "@/components/brand/logo";
 import { cn, formatTime } from "@/lib/utils";
 import { TOOL_META } from "@/lib/types";
@@ -17,76 +17,51 @@ type Props = {
 
 export function MessageBubble({ message, onApprove, onSkip }: Props) {
   const isUser = message.role === "user";
-  const [copied, setCopied] = useState(false);
 
-  function copy() {
-    navigator.clipboard.writeText(message.content).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+  if (isUser) {
+    return (
+      <div className="flex animate-fade-in flex-col items-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-muted px-4 py-2.5 text-sm">
+          <div className="whitespace-pre-wrap break-words leading-relaxed">
+            {message.content}
+          </div>
+        </div>
+        <p className="mt-1 px-1 text-[10px] text-muted-foreground">
+          {formatTime(message.createdAt)}
+        </p>
+      </div>
+    );
   }
 
   return (
-    <div
-      className={cn(
-        "flex animate-fade-in gap-3",
-        isUser ? "flex-row-reverse" : "flex-row",
-      )}
-    >
-      <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground",
-        )}
-      >
-        {isUser ? (
-          <UserIcon className="h-4 w-4" />
-        ) : (
-          <BrandMark className="h-5 w-5 text-primary" />
-        )}
+    <div className="flex animate-fade-in gap-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-card text-primary">
+        <BrandMark className="h-5 w-5" />
       </div>
 
-      <div className={cn("min-w-0 max-w-[85%]", isUser && "items-end")}>
-        <div
-          className={cn(
-            "group relative rounded-2xl px-4 py-2.5 text-sm",
-            isUser
-              ? "bg-primary text-primary-foreground"
-              : "border bg-card text-card-foreground",
-          )}
-        >
-          {message.thinking ? (
-            <ThinkingDots />
-          ) : (
-            <div className="whitespace-pre-wrap break-words leading-relaxed">
-              {message.content}
-            </div>
-          )}
-
-          {!isUser && !message.thinking && message.content && (
-            <button
-              onClick={copy}
-              aria-label="Copy message"
-              className="absolute -right-2 -top-2 hidden rounded-md border bg-background p-1 text-muted-foreground shadow-sm hover:text-foreground group-hover:block"
-            >
-              {copied ? (
-                <Check className="h-3 w-3 text-emerald-500" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </button>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-sm font-semibold">Relay</span>
+          {!message.thinking && (
+            <span className="text-[10px] text-muted-foreground">
+              {formatTime(message.createdAt)}
+            </span>
           )}
         </div>
 
+        {message.thinking && !message.content ? (
+          <ThinkingDots />
+        ) : (
+          <AssistantText content={message.content} />
+        )}
+
         {/* Tool chips */}
         {message.toolsUsed.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {message.toolsUsed.map((t) => (
               <span
                 key={t}
-                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground"
+                className="rounded-md border bg-card px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
               >
                 {TOOL_META[t].name}
               </span>
@@ -94,7 +69,7 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
           </div>
         )}
 
-        {!isUser && <StepsList steps={message.steps} />}
+        <StepsList steps={message.steps} />
 
         {message.approval && (
           <ApprovalPanel
@@ -103,18 +78,44 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
             onSkip={() => onSkip(message.id)}
           />
         )}
-
-        {!message.thinking && (
-          <p
-            className={cn(
-              "mt-1 text-[10px] text-muted-foreground",
-              isUser ? "text-right" : "text-left",
-            )}
-          >
-            {formatTime(message.createdAt)}
-          </p>
-        )}
       </div>
+    </div>
+  );
+}
+
+function AssistantText({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  if (!content) return null;
+
+  function copy() {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  return (
+    <div className="group relative">
+      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+        {content}
+      </div>
+      <button
+        onClick={copy}
+        aria-label="Copy message"
+        className="mt-2 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        {copied ? (
+          <>
+            <Check className="h-3 w-3 text-emerald-500" />
+            Copied
+          </>
+        ) : (
+          <>
+            <Copy className="h-3 w-3" />
+            Copy
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -122,12 +123,11 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
 function ThinkingDots() {
   return (
     <div className="flex items-center gap-1.5 py-1 text-muted-foreground">
-      <span className="text-xs">thinking</span>
       <span className="flex gap-1">
         {[0, 150, 300].map((d) => (
           <span
             key={d}
-            className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground"
+            className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70"
             style={{ animationDelay: `${d}ms` }}
           />
         ))}

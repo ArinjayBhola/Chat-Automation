@@ -32,12 +32,13 @@ export function StepsList({ steps }: { steps: Step[] }) {
   if (steps.length === 0) return null;
 
   return (
-    <div className="mt-2 rounded-lg border bg-background/50">
+    <div className="mt-2.5 overflow-hidden rounded-xl border bg-surface">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-t-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent/50"
+        className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/50"
       >
-        <span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           Steps taken ({steps.filter((s) => s.status === "success").length}/
           {steps.length})
         </span>
@@ -46,7 +47,7 @@ export function StepsList({ steps }: { steps: Step[] }) {
         />
       </button>
       {open && (
-        <ol className="space-y-1 px-3 pb-2">
+        <ol className="space-y-1 border-t px-3 pb-2 pt-1.5">
           {steps.map((step, i) => (
             <li key={step.id} className="flex items-start gap-2 py-1 text-xs">
               <span className="mt-0.5">

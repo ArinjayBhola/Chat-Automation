@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "./header";
-import { Sidebar } from "./sidebar";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
 import type { ChatListItem } from "./chat-history";
+import { AppShell } from "@/components/layout/app-shell";
 import { useChat } from "@/lib/hooks/use-chat";
 import type { ModelChoice } from "@/lib/ai/models";
 
@@ -24,8 +25,10 @@ export function ChatInterface({
   models: ModelChoice[];
   defaultModelId: string;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [chats, setChats] = useState<ChatListItem[]>([]);
+
   const {
     messages,
     isSending,
@@ -54,10 +57,21 @@ export function ChatInterface({
     refreshChats();
   }, [refreshChats, chatId]);
 
+  // Open a specific chat when arrived via `/chat?c=<id>` (e.g. from settings),
+  // then strip the param so refreshes don't reload it.
+  const openedFromUrl = useRef(false);
+  useEffect(() => {
+    const c = searchParams.get("c");
+    if (c && !openedFromUrl.current) {
+      openedFromUrl.current = true;
+      loadChat(c);
+      router.replace("/chat");
+    }
+  }, [searchParams, loadChat, router]);
+
   const handleSelectChat = useCallback(
     (id: string) => {
       loadChat(id);
-      setSidebarOpen(false);
     },
     [loadChat],
   );
@@ -75,46 +89,42 @@ export function ChatInterface({
     [chatId, reset, refreshChats],
   );
 
+  const activeTitle = chats.find((c) => c.id === chatId)?.title ?? "New chat";
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <Header
-        user={user}
-        onToggleSidebar={() => setSidebarOpen((o) => !o)}
-        onNewChat={reset}
-      />
-
-      <div className="relative flex flex-1 overflow-hidden">
-        {/* Mobile overlay */}
-        {sidebarOpen && (
-          <div
-            className="absolute inset-0 z-10 bg-black/40 md:hidden"
-            onClick={() => setSidebarOpen(false)}
+    <AppShell
+      sidebar={{
+        user,
+        chats,
+        activeChatId: chatId,
+        onSelectChat: handleSelectChat,
+        onDeleteChat: handleDeleteChat,
+        onNewChat: reset,
+      }}
+    >
+      {({ toggleSidebar }) => (
+        <>
+          <Header
+            title={activeTitle}
+            onToggleSidebar={toggleSidebar}
+            onNewChat={reset}
           />
-        )}
-
-        <Sidebar
-          open={sidebarOpen}
-          user={user}
-          models={models}
-          modelId={modelId}
-          onModelChange={setModelId}
-          chats={chats}
-          activeChatId={chatId}
-          onSelectChat={handleSelectChat}
-          onDeleteChat={handleDeleteChat}
-          onNewChat={reset}
-        />
-
-        <main className="flex min-w-0 flex-1 flex-col">
           <MessageList
             messages={messages}
+            userName={user.name}
             onApprove={(id, fields) => resolveApproval(id, "approved", fields)}
             onSkip={(id) => resolveApproval(id, "skipped")}
             onSuggestion={send}
           />
-          <MessageInput disabled={isSending} onSend={send} />
-        </main>
-      </div>
-    </div>
+          <MessageInput
+            disabled={isSending}
+            onSend={send}
+            models={models}
+            modelId={modelId}
+            onModelChange={setModelId}
+          />
+        </>
+      )}
+    </AppShell>
   );
 }
