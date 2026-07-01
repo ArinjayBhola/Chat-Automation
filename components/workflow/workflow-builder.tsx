@@ -8,6 +8,7 @@ import { NodePalette } from "./node-palette";
 import { NodePropertiesPanel } from "./node-properties-panel";
 import { WorkflowSidebar, type WorkflowListItem } from "./sidebar";
 import { WorkflowToolbar } from "./toolbar";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function WorkflowBuilder({
   initialWorkflowId,
@@ -20,6 +21,7 @@ export function WorkflowBuilder({
   const [activeId, setActiveId] = useState<string | null>(
     initialWorkflowId ?? null,
   );
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
   const clear = useWorkflowStore((s) => s.clear);
@@ -85,24 +87,21 @@ export function WorkflowBuilder({
     }
   }, [refresh, select]);
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      if (!window.confirm("Delete this workflow? This cannot be undone.")) {
-        return;
-      }
-      setWorkflows((prev) => prev.filter((w) => w.id !== id));
-      if (id === activeId) {
-        setActiveId(null);
-        clear();
-      }
-      try {
-        await fetch(`/api/workflows/${id}`, { method: "DELETE" });
-      } finally {
-        refresh();
-      }
-    },
-    [activeId, clear, refresh],
-  );
+  const confirmDelete = useCallback(async () => {
+    const id = pendingDelete;
+    if (!id) return;
+    setPendingDelete(null);
+    setWorkflows((prev) => prev.filter((w) => w.id !== id));
+    if (id === activeId) {
+      setActiveId(null);
+      clear();
+    }
+    try {
+      await fetch(`/api/workflows/${id}`, { method: "DELETE" });
+    } finally {
+      refresh();
+    }
+  }, [pendingDelete, activeId, clear, refresh]);
 
   const handleRename = useCallback(
     async (id: string, name: string) => {
@@ -145,7 +144,7 @@ export function WorkflowBuilder({
         creating={creating}
         onSelect={select}
         onNew={handleNew}
-        onDelete={handleDelete}
+        onDelete={setPendingDelete}
         onRename={handleRename}
       />
 
@@ -163,6 +162,16 @@ export function WorkflowBuilder({
           <EmptyState onNew={handleNew} creating={creating} />
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this workflow?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

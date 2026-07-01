@@ -74,7 +74,7 @@ export async function GET(
   }
 
   const [rows, pending] = await Promise.all([
-    getChatMessages(chatId),
+    getChatMessages(chatId, session.user.id),
     getPendingApprovalsForChat(chatId, session.user.id),
   ]);
 

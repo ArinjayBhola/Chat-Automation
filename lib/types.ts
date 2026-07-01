@@ -25,6 +25,14 @@ export type Step = {
   status: StepStatus;
   detail?: string;
   error?: string;
+  /** Human phrase for the step, e.g. "Searching Notion". Falls back to action. */
+  label?: string;
+  /** Raw tool name, e.g. "notion_create_page". */
+  toolName?: string;
+  /** Arguments the tool was called with (the "Request"). */
+  input?: unknown;
+  /** Result the tool returned (the "Response"); omitted for approval prompts. */
+  output?: unknown;
 };
 
 export type ActionType =
@@ -72,6 +80,8 @@ export type ClientMessage = {
   approval?: ClientApproval;
   /** UI state: assistant message still being produced. */
   thinking?: boolean;
+  /** True once the stream has fully finished (drives the steps "Done" row). */
+  done?: boolean;
 };
 
 export type ChatRequest = {

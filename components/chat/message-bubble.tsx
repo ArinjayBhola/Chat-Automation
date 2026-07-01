@@ -69,7 +69,7 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
           </div>
         )}
 
-        <StepsList steps={message.steps} />
+        <StepsList steps={message.steps} done={message.done} />
 
         {message.approval && (
           <ApprovalPanel

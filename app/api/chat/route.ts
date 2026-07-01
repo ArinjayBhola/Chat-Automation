@@ -274,10 +274,15 @@ async function runReal(
       const name = part.toolName as string;
       const toolId = toolNameToToolId(name);
       if (toolId) acc.tools.add(toolId);
+      const input = part.input ?? part.args;
+      const label = humanizeLabel(name);
       const step: Step = {
         id,
         tool: toolId,
-        action: humanizeTool(name, part.input ?? part.args),
+        action: label,
+        label,
+        toolName: name,
+        input: clampValue(input),
         status: "in_progress",
       };
       acc.steps.set(id, step);
@@ -298,6 +303,8 @@ async function runReal(
         ...(prev ?? { id, tool: null, action: "tool" }),
         status: needsApproval ? "needs_approval" : "success",
         detail: needsApproval ? "Waiting for your approval." : undefined,
+        // The approval payload isn't a useful "Response"; keep it hidden.
+        output: needsApproval ? undefined : clampValue(output),
       };
       acc.steps.set(id, step);
       send({ type: "step", step });
@@ -342,16 +349,43 @@ async function runReal(
   send({ type: "tools", tools: [...acc.tools] });
 }
 
-function humanizeTool(name: string, input: unknown): string {
-  const args =
-    input && typeof input === "object"
-      ? Object.entries(input as Record<string, unknown>)
-          .map(([k, v]) => `${k}: ${truncate(String(v), 40)}`)
-          .join(", ")
-      : "";
-  return `${name}(${args})`;
+/** Friendly, human-readable label per tool for the steps timeline. */
+const TOOL_LABELS: Record<string, string> = {
+  gmail_search_emails: "Searching your inbox",
+  gmail_read_email: "Reading an email",
+  gmail_mark_as_read: "Marking as read",
+  gmail_send_email: "Drafting an email",
+  drive_search_files: "Searching Drive",
+  drive_list_files: "Listing Drive files",
+  drive_read_file: "Reading a file",
+  drive_save_file: "Saving a file",
+  docs_read_document: "Reading a document",
+  docs_create_document: "Drafting a document",
+  docs_update_document: "Preparing document edits",
+  calendar_list_events: "Checking your calendar",
+  calendar_search_events: "Searching events",
+  calendar_create_event: "Drafting an event",
+  notion_search_pages: "Searching Notion",
+  notion_read_page: "Reading a Notion page",
+  notion_create_page: "Drafting a Notion page",
+  notion_update_page: "Preparing Notion edits",
+};
+
+function humanizeLabel(name: string): string {
+  return TOOL_LABELS[name] ?? name.replace(/_/g, " ");
 }
 
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n) + "…" : s;
+/**
+ * Keep small values structured (so the UI can pretty-print JSON), but cap large
+ * payloads to a truncated string so persisted steps don't bloat the DB.
+ */
+function clampValue(v: unknown, max = 4000): unknown {
+  if (v == null) return undefined;
+  try {
+    const s = JSON.stringify(v);
+    if (s && s.length > max) return s.slice(0, max) + "… (truncated)";
+    return v;
+  } catch {
+    return String(v);
+  }
 }

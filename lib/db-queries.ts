@@ -433,12 +433,17 @@ export async function listArchivedChats(userId: string) {
     .orderBy(desc(chats.updatedAt));
 }
 
-export async function getChatMessages(chatId: string) {
+/**
+ * Messages for a chat, scoped to their owner. The userId filter makes this
+ * query self-guarding: it cannot return another user's messages even if a
+ * caller forgets the ownership gate, so it is not an IDOR risk on its own.
+ */
+export async function getChatMessages(chatId: string, userId: string) {
   if (!isDbEnabled || !db) return [];
   return db
     .select()
     .from(messages)
-    .where(eq(messages.chatId, chatId))
+    .where(and(eq(messages.chatId, chatId), eq(messages.userId, userId)))
     .orderBy(messages.createdAt);
 }
 

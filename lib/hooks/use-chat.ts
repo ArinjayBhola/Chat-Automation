@@ -83,7 +83,7 @@ export function useChat(initialModelId: string) {
           }));
           break;
         case "done":
-          patchMessage(id, (m) => ({ ...m, thinking: false }));
+          patchMessage(id, (m) => ({ ...m, thinking: false, done: true }));
           break;
       }
     },
@@ -265,7 +265,8 @@ export function useChat(initialModelId: string) {
         if (!res.ok) return;
         const data: { messages: ClientMessage[] } = await res.json();
         setChatId(id);
-        setMessages(data.messages.length ? data.messages : [WELCOME]);
+        const loaded = data.messages.map((m) => ({ ...m, done: true }));
+        setMessages(loaded.length ? loaded : [WELCOME]);
       } catch {
         /* ignore load failure */
       }

@@ -7,6 +7,7 @@ import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
 import type { ChatListItem } from "./chat-history";
 import { AppShell } from "@/components/layout/app-shell";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useChat } from "@/lib/hooks/use-chat";
 import type { ModelChoice } from "@/lib/ai/models";
 
@@ -29,6 +30,7 @@ export function ChatInterface({
   const searchParams = useSearchParams();
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [chatsLoading, setChatsLoading] = useState(true);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const {
     messages,
@@ -79,18 +81,18 @@ export function ChatInterface({
     [loadChat],
   );
 
-  const handleDeleteChat = useCallback(
-    async (id: string) => {
-      setChats((prev) => prev.filter((c) => c.id !== id));
-      if (id === chatId) reset();
-      try {
-        await fetch(`/api/chat/${id}`, { method: "DELETE" });
-      } finally {
-        refreshChats();
-      }
-    },
-    [chatId, reset, refreshChats],
-  );
+  const confirmDeleteChat = useCallback(async () => {
+    const id = pendingDelete;
+    if (!id) return;
+    setPendingDelete(null);
+    setChats((prev) => prev.filter((c) => c.id !== id));
+    if (id === chatId) reset();
+    try {
+      await fetch(`/api/chat/${id}`, { method: "DELETE" });
+    } finally {
+      refreshChats();
+    }
+  }, [pendingDelete, chatId, reset, refreshChats]);
 
   const handleRenameChat = useCallback(
     async (id: string, title: string) => {
@@ -149,6 +151,7 @@ export function ChatInterface({
   const activeTitle = chats.find((c) => c.id === chatId)?.title ?? "New chat";
 
   return (
+    <>
     <AppShell
       sidebar={{
         user,
@@ -156,7 +159,7 @@ export function ChatInterface({
         loading: chatsLoading,
         activeChatId: chatId,
         onSelectChat: handleSelectChat,
-        onDeleteChat: handleDeleteChat,
+        onDeleteChat: setPendingDelete,
         onRenameChat: handleRenameChat,
         onPinChat: handlePinChat,
         onArchiveChat: handleArchiveChat,
@@ -187,5 +190,16 @@ export function ChatInterface({
         </>
       )}
     </AppShell>
+
+    <ConfirmDialog
+      open={pendingDelete !== null}
+      title="Delete this chat?"
+      description="This chat and its messages will be permanently removed. This cannot be undone."
+      confirmLabel="Delete"
+      destructive
+      onConfirm={confirmDeleteChat}
+      onCancel={() => setPendingDelete(null)}
+    />
+    </>
   );
 }

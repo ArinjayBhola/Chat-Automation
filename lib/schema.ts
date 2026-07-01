@@ -154,6 +154,10 @@ export type ExecutionStep = {
   error?: string;
   startedAt?: string;
   finishedAt?: string;
+  label?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
 };
 
 export const messages = pgTable(
