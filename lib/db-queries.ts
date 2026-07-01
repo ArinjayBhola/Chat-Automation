@@ -12,6 +12,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { db, isDbEnabled } from "./db";
+import { cached, invalidatePrefix, TTL } from "./cache";
 import {
   approvals,
   auditLogs,
@@ -173,24 +174,40 @@ export async function deleteUser(userId: string): Promise<void> {
 }
 
 // ---- tool connections -----------------------------------------------------
+// Connections change only on connect/disconnect/token-refresh, but are read on
+// every chat request and tool call, so they are cached with explicit
+// invalidation (see `invalidateConnections`) on every write below.
+function connCacheKey(userId: string, tool?: ToolName) {
+  return tool ? `conn:${userId}:t:${tool}` : `conn:${userId}:all`;
+}
+
+/** Drop all cached connection reads for a user (call after any write). */
+export function invalidateConnections(userId: string) {
+  invalidatePrefix(`conn:${userId}:`);
+}
+
 export async function getToolConnections(userId: string) {
   if (!isDbEnabled || !db) return [];
-  return db
-    .select()
-    .from(toolConnections)
-    .where(eq(toolConnections.userId, userId));
+  return cached(connCacheKey(userId), TTL.connections, () =>
+    db!
+      .select()
+      .from(toolConnections)
+      .where(eq(toolConnections.userId, userId)),
+  );
 }
 
 export async function getToolConnection(userId: string, tool: ToolName) {
   if (!isDbEnabled || !db) return null;
-  const rows = await db
-    .select()
-    .from(toolConnections)
-    .where(
-      and(eq(toolConnections.userId, userId), eq(toolConnections.tool, tool)),
-    )
-    .limit(1);
-  return rows[0] ?? null;
+  return cached(connCacheKey(userId, tool), TTL.connections, async () => {
+    const rows = await db!
+      .select()
+      .from(toolConnections)
+      .where(
+        and(eq(toolConnections.userId, userId), eq(toolConnections.tool, tool)),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  });
 }
 
 /**
@@ -228,6 +245,7 @@ export async function upsertToolConnection(input: {
       },
     })
     .returning();
+  invalidateConnections(input.userId);
   return row;
 }
 
@@ -253,6 +271,7 @@ export async function updateToolAccessToken(input: {
       ),
     )
     .returning();
+  invalidateConnections(input.userId);
   return row;
 }
 
@@ -263,6 +282,7 @@ export async function deleteToolConnection(userId: string, tool: ToolName) {
     .where(
       and(eq(toolConnections.userId, userId), eq(toolConnections.tool, tool)),
     );
+  invalidateConnections(userId);
 }
 
 // ---- chats ----------------------------------------------------------------

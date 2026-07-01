@@ -26,8 +26,15 @@ export async function POST(
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
   const editedArgs = fieldsToArgs(body?.fields);
+  const op = typeof body?.op === "string" ? body.op : undefined;
 
-  const result = await decideApproval(session.user.id, id, "approved", editedArgs);
+  const result = await decideApproval(
+    session.user.id,
+    id,
+    "approved",
+    editedArgs,
+    op,
+  );
   return NextResponse.json(
     {
       ok: result.ok,

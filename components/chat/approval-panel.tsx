@@ -13,10 +13,15 @@ type Props = {
 };
 
 export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() =>
+    approval.fields.some((f) => !f.value),
+  );
   const [fields, setFields] = useState<ApprovalField[]>(approval.fields);
   const [remaining, setRemaining] = useState(
-    approval.timeoutSeconds ?? null,
+    // Approvals that require a selection must not auto-skip mid-choice.
+    approval.fields.some((f) => f.options)
+      ? null
+      : approval.timeoutSeconds ?? null,
   );
 
   const resolved = approval.status !== "pending";
@@ -54,6 +59,9 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
     );
   }
 
+  // Selectable (picker) fields are required — block approve until one is chosen.
+  const missingSelection = fields.some((f) => f.options && !f.value);
+
   return (
     <div className="mt-2 animate-fade-in rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
       <div className="flex items-start gap-2">
@@ -85,7 +93,20 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
               {f.label}
             </label>
             {editing ? (
-              f.multiline ? (
+              f.options ? (
+                <select
+                  value={f.value}
+                  onChange={(e) => updateField(f.key, e.target.value)}
+                  className="w-full rounded-md border bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="" disabled>Select an option...</option>
+                  {f.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : f.multiline ? (
                 <textarea
                   value={f.value}
                   onChange={(e) => updateField(f.key, e.target.value)}
@@ -101,15 +122,25 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
               )
             ) : (
               <p className="whitespace-pre-wrap rounded-md bg-background/60 px-2 py-1.5 text-sm">
-                {f.value}
+                {f.options?.find((o) => o.value === f.value)?.label ?? f.value}
               </p>
             )}
           </div>
         ))}
       </div>
 
+      {missingSelection && (
+        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+          Select an option above to continue.
+        </p>
+      )}
+
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => onApprove(fields)}>
+        <Button
+          size="sm"
+          disabled={missingSelection}
+          onClick={() => onApprove(fields)}
+        >
           <Check className="h-3.5 w-3.5" />
           {editing ? "Save & Approve" : "Approve"}
         </Button>

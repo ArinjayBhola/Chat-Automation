@@ -1,11 +1,12 @@
 import "server-only";
+import { isDbEnabled } from "../db";
 import {
   getApprovalById,
   insertAuditLog,
   updateApproval,
 } from "../db-queries";
 import { executeApproval } from "./execute";
-import { OP_KEY, type ApprovalOp } from "./ops";
+import { OP_KEY, OP_TOOL, type ApprovalOp } from "./ops";
 
 export type ApprovalDecision = "approved" | "rejected" | "skipped";
 
@@ -41,11 +42,33 @@ export async function decideApproval(
   id: string,
   decision: ApprovalDecision,
   editedArgs?: Record<string, unknown>,
+  fallbackOp?: string,
 ): Promise<DecisionResult> {
   const row = await getApprovalById(id, userId);
   if (!row) {
-    // No persisted row (no DB, or already gone) — let the caller fall back.
-    return { ok: false, status: 404, error: "Approval not found." };
+    // With a DB, a missing row means the approval is genuinely gone.
+    if (isDbEnabled) {
+      return { ok: false, status: 404, error: "Approval not found." };
+    }
+    // No DB: nothing was persisted, so execute statelessly from the op the
+    // client echoed back. Reject/skip have nothing to record — just ack.
+    if (decision !== "approved") {
+      return { ok: true, status: 200 };
+    }
+    if (!fallbackOp || !(fallbackOp in OP_TOOL)) {
+      return { ok: false, status: 400, error: "No action to execute." };
+    }
+    try {
+      const result = await executeApproval(
+        userId,
+        fallbackOp as ApprovalOp,
+        editedArgs ?? {},
+      );
+      return { ok: true, status: 200, summary: result.summary };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "Execution failed.";
+      return { ok: false, status: 200, error };
+    }
   }
   if (row.status !== "pending") {
     return { ok: true, status: 200, alreadyResolved: true };

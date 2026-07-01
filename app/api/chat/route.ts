@@ -304,12 +304,14 @@ async function runReal(
 
       if (needsApproval) {
         const approval = output.approval as ClientApproval;
+        const op = (output.op as ApprovalOp) ?? null;
         acc.approvals.push({
           approval,
-          op: (output.op as ApprovalOp) ?? null,
+          op,
           args: (output.args as Record<string, unknown>) ?? {},
         });
-        send({ type: "approval", approval });
+        // Carry the op so the client can echo it back for the no-DB fallback.
+        send({ type: "approval", approval: { ...approval, op: op ?? undefined } });
       }
       continue;
     }

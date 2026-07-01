@@ -103,6 +103,11 @@ export async function notionCreatePage(
   title: string,
   content: string,
 ): Promise<NotionPage> {
+  if (!parentId || !parentId.trim()) {
+    throw new Error(
+      "No Notion parent page selected. Pick an existing parent page or create a new one first, then retry.",
+    );
+  }
   const res = (await notionFetch("/pages", token, {
     method: "POST",
     body: JSON.stringify({

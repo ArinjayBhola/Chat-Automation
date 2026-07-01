@@ -10,6 +10,7 @@ import type {
   ToolId,
 } from "../types";
 import { getValidAccessToken } from "../tools/connections";
+import { cached, invalidatePrefix, stableKey, TTL } from "../cache";
 import * as g from "../tools/google-api";
 import * as n from "../tools/notion-api";
 import type { ApprovalOp } from "./ops";
@@ -69,6 +70,24 @@ async function token(ctx: AgentContext, t: ToolId): Promise<string> {
   return tok;
 }
 
+/**
+ * Cache a READ-ONLY tool call for a short window, scoped to the user + op +
+ * args. Only used for non-mutating reads (search/list/read); write tools go
+ * through the approval flow and are never cached.
+ */
+function readCached<T>(
+  ctx: AgentContext,
+  op: string,
+  args: Record<string, unknown>,
+  load: () => Promise<T>,
+): Promise<T> {
+  return cached(
+    `tool:${ctx.userId}:${op}:${stableKey(args)}`,
+    TTL.toolRead,
+    load,
+  );
+}
+
 export function buildTools(ctx: AgentContext): ToolSet {
   const tools: ToolSet = {};
   const has = (t: ToolId) => ctx.connected.has(t);
@@ -83,14 +102,18 @@ export function buildTools(ctx: AgentContext): ToolSet {
         max: z.number().int().min(1).max(25).optional(),
       }),
       execute: async ({ query, max }) =>
-        g.gmailSearch(await token(ctx, "gmail"), query, max ?? 10),
+        readCached(ctx, "gmail.search", { query, max: max ?? 10 }, async () =>
+          g.gmailSearch(await token(ctx, "gmail"), query, max ?? 10),
+        ),
     });
 
     tools.gmail_read_email = tool({
       description: "Read the full content of one email by its id.",
       inputSchema: z.object({ emailId: z.string() }),
       execute: async ({ emailId }) =>
-        g.gmailReadEmail(await token(ctx, "gmail"), emailId),
+        readCached(ctx, "gmail.read", { emailId }, async () =>
+          g.gmailReadEmail(await token(ctx, "gmail"), emailId),
+        ),
     });
 
     tools.gmail_mark_as_read = tool({
@@ -98,6 +121,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
       inputSchema: z.object({ emailId: z.string() }),
       execute: async ({ emailId }) => {
         await g.gmailMarkRead(await token(ctx, "gmail"), emailId);
+        // The email's read/unread state changed; drop cached gmail reads.
+        invalidatePrefix(`tool:${ctx.userId}:gmail.`);
         return { ok: true };
       },
     });
@@ -132,7 +157,9 @@ export function buildTools(ctx: AgentContext): ToolSet {
         mimeType: z.string().optional(),
       }),
       execute: async ({ query, mimeType }) =>
-        g.driveSearch(await token(ctx, "drive"), query, mimeType),
+        readCached(ctx, "drive.search", { query, mimeType }, async () =>
+          g.driveSearch(await token(ctx, "drive"), query, mimeType),
+        ),
     });
 
     tools.drive_list_files = tool({
@@ -142,14 +169,21 @@ export function buildTools(ctx: AgentContext): ToolSet {
         limit: z.number().int().min(1).max(50).optional(),
       }),
       execute: async ({ folderId, limit }) =>
-        g.driveList(await token(ctx, "drive"), folderId, limit ?? 20),
+        readCached(
+          ctx,
+          "drive.list",
+          { folderId, limit: limit ?? 20 },
+          async () => g.driveList(await token(ctx, "drive"), folderId, limit ?? 20),
+        ),
     });
 
     tools.drive_read_file = tool({
       description: "Read the text content of a Drive file by id.",
       inputSchema: z.object({ fileId: z.string() }),
       execute: async ({ fileId }) =>
-        g.driveReadFile(await token(ctx, "drive"), fileId),
+        readCached(ctx, "drive.read", { fileId }, async () =>
+          g.driveReadFile(await token(ctx, "drive"), fileId),
+        ),
     });
 
     tools.drive_save_file = tool({
@@ -169,7 +203,9 @@ export function buildTools(ctx: AgentContext): ToolSet {
       description: "Read a Google Doc's text by document id.",
       inputSchema: z.object({ documentId: z.string() }),
       execute: async ({ documentId }) =>
-        g.docsRead(await token(ctx, "docs"), documentId),
+        readCached(ctx, "docs.read", { documentId }, async () =>
+          g.docsRead(await token(ctx, "docs"), documentId),
+        ),
     });
 
     tools.docs_create_document = tool({
@@ -211,14 +247,21 @@ export function buildTools(ctx: AgentContext): ToolSet {
         daysAhead: z.number().int().min(1).max(60).optional(),
       }),
       execute: async ({ daysAhead }) =>
-        g.calendarList(await token(ctx, "calendar"), daysAhead ?? 7),
+        readCached(
+          ctx,
+          "calendar.list",
+          { daysAhead: daysAhead ?? 7 },
+          async () => g.calendarList(await token(ctx, "calendar"), daysAhead ?? 7),
+        ),
     });
 
     tools.calendar_search_events = tool({
       description: "Search calendar events by keyword.",
       inputSchema: z.object({ query: z.string() }),
       execute: async ({ query }) =>
-        g.calendarSearch(await token(ctx, "calendar"), query),
+        readCached(ctx, "calendar.search", { query }, async () =>
+          g.calendarSearch(await token(ctx, "calendar"), query),
+        ),
     });
 
     tools.calendar_create_event = tool({
@@ -253,28 +296,53 @@ export function buildTools(ctx: AgentContext): ToolSet {
   if (has("notion")) {
     tools.notion_search_pages = tool({
       description: "Search the user's Notion pages.",
-      inputSchema: z.object({ query: z.string() }),
+      inputSchema: z.object({ query: z.string().optional() }),
       execute: async ({ query }) =>
-        n.notionSearch(await token(ctx, "notion"), query),
+        readCached(ctx, "notion.search", { query: query ?? "" }, async () =>
+          n.notionSearch(await token(ctx, "notion"), query ?? ""),
+        ),
     });
 
     tools.notion_read_page = tool({
       description: "Read a Notion page's text content by id.",
       inputSchema: z.object({ pageId: z.string() }),
       execute: async ({ pageId }) =>
-        n.notionReadPage(await token(ctx, "notion"), pageId),
+        readCached(ctx, "notion.read", { pageId }, async () =>
+          n.notionReadPage(await token(ctx, "notion"), pageId),
+        ),
     });
 
     tools.notion_create_page = tool({
       description:
-        "Create a Notion page under a parent page. SENSITIVE: requires user approval.",
+        "Create a Notion page. If you do not have a specific parentId, completely omit the parentId field. Do NOT pass 'approval_required' or any placeholder strings. SENSITIVE: requires user approval.",
       inputSchema: z.object({
-        parentId: z.string(),
+        parentId: z.string().optional(),
         title: z.string(),
         content: z.string(),
       }),
-      execute: async ({ parentId, title, content }) =>
-        approvalResult(
+      execute: async ({ parentId, title, content }) => {
+        if (!parentId || !parentId.trim() || parentId === "approval_required") {
+          const t = await token(ctx, "notion");
+          const pages = await n.notionSearch(t, "");
+          if (pages.length === 0) {
+            return {
+              error:
+                "No Notion pages are shared with this integration yet, so there is nowhere to create the page. In Notion, open a page, click the ... menu, choose Connections, and connect this integration, then ask again.",
+            };
+          }
+          const pageOptions = pages.map((p) => ({ label: p.title, value: p.id }));
+
+          return approvalResult(
+            makeApproval("create_notion_page", "Notion", `Select a parent page to create "${title}" under`, [
+              { key: "parentId", label: "Parent Page", value: "", options: pageOptions },
+              { key: "title", label: "Title", value: title },
+              { key: "content", label: "Content", value: content, multiline: true },
+            ]),
+            "notion.create",
+            { parentId: "", title, content },
+          );
+        }
+        return approvalResult(
           makeApproval("create_notion_page", "Notion", `Create page "${title}"`, [
             { key: "parentId", label: "Parent page id", value: parentId },
             { key: "title", label: "Title", value: title },
@@ -282,7 +350,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
           ]),
           "notion.create",
           { parentId, title, content },
-        ),
+        );
+      },
     });
 
     tools.notion_update_page = tool({

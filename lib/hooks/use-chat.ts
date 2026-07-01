@@ -201,7 +201,7 @@ export function useChat(initialModelId: string) {
         const res = await fetch(`/api/approvals/${approval.id}/${path}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fields }),
+          body: JSON.stringify({ fields, op: approval.op }),
         });
         const data = await res.json().catch(() => ({}));
         if (decision === "approved") {

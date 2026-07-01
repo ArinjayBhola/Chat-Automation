@@ -38,6 +38,7 @@ export type ApprovalField = {
   label: string;
   value: string;
   multiline?: boolean;
+  options?: { label: string; value: string }[];
 };
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "skipped";
@@ -51,6 +52,12 @@ export type ClientApproval = {
   status: ApprovalStatus;
   /** seconds remaining before auto-skip; null when not counting down */
   timeoutSeconds?: number;
+  /**
+   * Write op this approval will run (e.g. "notion.create"). Sent to the client
+   * only so it can be echoed back to execute when the DB is disabled (no
+   * persisted row to look the op up from). Ignored when a DB row exists.
+   */
+  op?: string;
 };
 
 export type ChatRole = "user" | "assistant";
