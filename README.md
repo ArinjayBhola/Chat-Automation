@@ -1,86 +1,184 @@
-<h1 align="center">Relay</h1>
+# Relay
 
-<p align="center">
-  <strong>An AI assistant that relays your plain-English commands across
-  Gmail, Drive, Docs, Calendar &amp; Notion - and hands off the consequential
-  actions only when you approve.</strong>
-</p>
+> An AI assistant that turns plain-English requests into real actions across Gmail, Google Drive, Google Docs, Google Calendar, and Notion — with human approval before anything consequential happens.
 
-<p align="center">
-  Next.js 16 · React 19 · Auth.js v5 · Drizzle + Postgres · Vercel AI SDK v7
-</p>
+**Next.js 16 · React 19 · Auth.js v5 · Drizzle ORM · PostgreSQL · Vercel AI SDK v7**
 
 ---
 
-Relay breaks a request into steps, picks only the tools it needs, passes data
-between them, and pauses for your approval before anything with real
-consequences - sending email, creating events, editing docs or Notion pages.
-Every model response comes from a real provider and every tool call hits the
-real API; there is no mock data.
+## Overview
 
-## Features
+Relay is an autonomous AI assistant that plans multi-step workflows, chooses the right tools, passes information between them, and pauses before performing any action that could have real consequences.
 
-- **Autonomous multi-tool agent.** Plans steps, selects only the connected
-  tools, passes results between steps, and continues past individual failures.
-- **Human-in-the-loop approvals.** Sensitive actions pause with editable fields
-  and a 30-second auto-skip. Approving actually performs the action; every
-  decision is written to an append-only audit log.
-- **Bring your own model.** Pick per-conversation from:
-  - **Anthropic** - Claude Opus 4.8, Sonnet 4.6, Haiku 4.5
-  - **OpenAI** - GPT-4o, GPT-4o mini
-  - **Google** - Gemini 2.0 Flash, Gemini 1.5 Pro
-  - **OpenRouter** - Hermes 3 (405B/70B), Llama 3.3 70B, Qwen 2.5 72B,
-    DeepSeek V3, Mistral Large
-  - **Groq** - Llama 3.3 70B, Llama 3.1 8B, DeepSeek R1 Distill, Gemma2
-  - **Custom gateway** - any OpenAI-compatible endpoint (Together, Fireworks, …)
-- **Five integrations.** Gmail, Google Drive, Google Docs, Google Calendar, and
-  Notion - connected per-user via OAuth, with tokens encrypted at rest.
-- **Flexible sign-in.** Google OAuth or email/password (Auth.js v5), with
-  HTTP-only JWT sessions, AES-256-GCM token encryption, scrypt password hashing,
-  per-user rate limiting, and input sanitization.
-- **Real persistence.** Chats, messages, approvals, and audit logs in Postgres
-  via Drizzle, with a chat-history sidebar.
+Unlike demo agents, Relay executes against **real APIs** using **real AI models**. There are **no mocked tool calls or fake responses**.
 
-## Tech stack
+For example, you can ask Relay:
 
-| Area     | Choice                                                              |
-| -------- | ------------------------------------------------------------------ |
-| Framework| Next.js 16 (App Router), React 19, TypeScript                      |
-| UI       | Tailwind CSS, shadcn-style components on Radix UI, lucide-react    |
-| Auth     | Auth.js v5 (NextAuth): Google OAuth + email/password (scrypt)       |
-| Data     | Drizzle ORM + Postgres (`postgres` driver; Neon/Supabase/local)   |
-| AI       | Vercel AI SDK v7 - Anthropic / OpenAI / Google / OpenAI-compatible |
+- "Find every email from Stripe this month and summarize them."
+- "Create a meeting next Friday with the design team."
+- "Upload this report to Drive and share it."
+- "Update my Notion roadmap."
+- "Draft a reply to John's email."
 
-## Getting started
+Relay performs the research automatically, then asks for approval before sending emails, editing documents, creating calendar events, or modifying Notion pages.
 
-### 1. Prerequisites
+---
+
+# Features
+
+## Autonomous AI Agent
+
+- Breaks complex requests into multiple steps
+- Chooses only the connected tools it needs
+- Passes results between tools automatically
+- Continues even if individual tool calls fail
+- Supports up to 8 reasoning/tool steps per request
+
+## Human-in-the-Loop Approvals
+
+Before any write operation, Relay pauses and generates an approval request.
+
+Examples include:
+
+- Sending email
+- Creating calendar events
+- Editing Google Docs
+- Updating Notion pages
+
+Each proposal:
+
+- can be edited before approval
+- expires after 30 seconds if ignored
+- executes only after approval
+- is permanently recorded in an audit log
+
+## Bring Your Own Model
+
+Choose a model for every conversation.
+
+### Anthropic
+
+- Claude Opus 4.8
+- Claude Sonnet 4.6
+- Claude Haiku 4.5
+
+### OpenAI
+
+- GPT-4o
+- GPT-4o mini
+
+### Google
+
+- Gemini 2.0 Flash
+- Gemini 1.5 Pro
+
+### OpenRouter
+
+- Hermes 3 (405B / 70B)
+- Llama 3.3 70B
+- Qwen 2.5 72B
+- DeepSeek V3
+- Mistral Large
+
+### Groq
+
+- Llama 3.3 70B
+- Llama 3.1 8B
+- DeepSeek R1 Distill
+- Gemma 2
+
+### Custom Gateway
+
+Supports any OpenAI-compatible endpoint including:
+
+- Together AI
+- Fireworks AI
+- LiteLLM gateways
+- Self-hosted providers
+
+## Integrations
+
+- Gmail
+- Google Drive
+- Google Docs
+- Google Calendar
+- Notion
+
+Each integration is connected independently through OAuth and user tokens are encrypted at rest.
+
+## Authentication
+
+- Google OAuth
+- Email/password login
+- Auth.js v5
+- HTTP-only JWT sessions
+- AES-256-GCM token encryption
+- scrypt password hashing
+- Per-user rate limiting
+- Input sanitization
+
+## Persistent Storage
+
+Relay stores:
+
+- conversations
+- messages
+- approvals
+- audit logs
+- chat history
+
+using PostgreSQL with Drizzle ORM.
+
+---
+
+# Tech Stack
+
+| Area           | Technology                                    |
+| -------------- | --------------------------------------------- |
+| Framework      | Next.js 16 (App Router), React 19, TypeScript |
+| Styling        | Tailwind CSS, Radix UI, shadcn/ui             |
+| Authentication | Auth.js v5                                    |
+| Database       | PostgreSQL + Drizzle ORM                      |
+| AI             | Vercel AI SDK v7                              |
+| Deployment     | Vercel / Docker                               |
+
+---
+
+# Getting Started
+
+## Prerequisites
 
 - Node.js 22+
-- A Postgres database (Neon, Supabase, or local/Docker)
-- A Google Cloud OAuth client (for login + tool access)
-- At least one AI provider API key
+- PostgreSQL
+- Google Cloud OAuth Client
+- At least one supported AI provider API key
 
-### 2. Configure
+---
+
+## Installation
 
 ```bash
 npm install
+
 cp .env.example .env.local
 ```
 
-Fill in `.env.local`:
+---
 
-| Purpose            | Variables                                                        |
-| ------------------ | ---------------------------------------------------------------- |
-| Auth               | `AUTH_SECRET` (`openssl rand -base64 32`), `NEXTAUTH_URL`        |
-| Google login+tools | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                       |
-| Database           | `DATABASE_URL` (also required for email/password sign-up)       |
-| Token encryption   | `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`)              |
-| AI (any subset)    | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` |
-| Notion (optional)  | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`                       |
+## Environment Variables
 
-In the Google Cloud console, enable the **Gmail, Drive, Docs, and Calendar**
-APIs and register these authorized redirect URIs (swap the origin in
-production):
+| Purpose        | Variables                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| Authentication | `AUTH_SECRET`, `NEXTAUTH_URL`                                                                               |
+| Google OAuth   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                                  |
+| Database       | `DATABASE_URL`                                                                                              |
+| Encryption     | `TOKEN_ENCRYPTION_KEY`                                                                                      |
+| AI Providers   | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` |
+| Notion         | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`                                                                  |
+
+---
+
+## Google OAuth Redirects
 
 ```
 http://localhost:3000/api/auth/callback/google
@@ -91,91 +189,122 @@ http://localhost:3000/api/tools/calendar/callback
 http://localhost:3000/api/tools/notion/callback
 ```
 
-### 3. Create tables & run
+Enable the following APIs in Google Cloud:
+
+- Gmail API
+- Drive API
+- Docs API
+- Calendar API
+
+---
+
+## Run Locally
 
 ```bash
-npm run db:push     # apply the Drizzle schema
-npm run dev         # http://localhost:3000
+npm run db:push
+
+npm run dev
 ```
 
-Create an account with email/password (or Google), connect tools from the
-sidebar, pick a model, and start giving Relay instructions.
+Open:
 
-## Deployment
+```
+http://localhost:3000
+```
 
-### Vercel
+Create an account, connect your tools, choose an AI model, and start chatting.
 
-1. Import the repo and add every env var (use a **Neon pooled** `DATABASE_URL`).
-2. Set the Google OAuth redirect URIs to your production origin.
-3. Deploy, then run `npm run db:push` once against the production database.
+---
 
-> The default rate limiter is in-memory (per instance). For multi-instance
-> production, back `lib/rate-limit.ts` with Redis/Upstash - the call sites don't
-> change.
+# Deployment
 
-### Docker
+## Vercel
+
+1. Import the repository
+2. Add all environment variables
+3. Use a pooled PostgreSQL database (recommended: Neon)
+4. Update Google OAuth redirect URIs
+5. Deploy
+6. Run
 
 ```bash
-# put AUTH_SECRET, TOKEN_ENCRYPTION_KEY, GOOGLE_*, and a provider key in .env
+npm run db:push
+```
+
+once against production.
+
+> For multi-instance deployments, replace the default in-memory rate limiter with Redis or Upstash.
+
+---
+
+## Docker
+
+```bash
 docker compose up --build
-# first run only - create tables against the compose Postgres:
+```
+
+First run:
+
+```bash
 DATABASE_URL=postgresql://postgres:password@localhost:5432/chat_automation npm run db:push
 ```
 
-The image uses Next.js standalone output, and the same `postgres` driver works
-against the compose database and managed Postgres in production.
+---
 
-## Development
+# Development
 
 ```bash
-npm run dev         # dev server
-npm run test        # vitest unit tests (crypto, sanitize, ops)
-npm run typecheck   # tsc --noEmit
-npm run build       # production build (standalone)
+npm run dev
+
+npm run test
+
+npm run typecheck
+
+npm run build
 ```
 
-## Project structure
+---
+
+# Project Structure
 
 ```
 app/
-  api/chat/route.ts          # streaming agent (NDJSON) + chat list
-  api/chat/[chatId]/route.ts # load / delete a chat
-  api/approvals/...          # list + approve / reject / skip / edit
-  api/tools/[tool]/...        # connect / callback / disconnect / test
+  api/
+  ...
+
 components/
-  brand/logo.tsx             # Relay mark + wordmark (app/icon.svg = favicon)
-  ui/                        # shadcn-style primitives (Radix + Tailwind)
-  chat/                      # sidebar, history, messages, steps, approval panel
+  ...
+
 lib/
-  schema.ts                  # users, tool_connections, chats, messages, approvals, audit_logs
-  db.ts / db-queries.ts      # Drizzle data layer (postgres-js)
-  auth.ts / auth.config.ts   # Auth.js v5 (split for the edge proxy)
-  crypto.ts / rate-limit.ts / sanitize.ts
-  tools/                     # OAuth flows + Google/Notion API wrappers + token mgmt
-  agent/                     # agent, tools, execute, approvals, events, ops
-  ai/                        # model registry + provider resolver
+  agent/
+  ai/
+  auth/
+  crypto/
+  db/
+  schema/
+  tools/
 ```
 
-## How it works
+---
 
-1. You send a message. The chat route streams NDJSON events
-   (`text` / `step` / `approval` / `tools` / `meta`) back to the client.
-2. The agent (`streamText`, Vercel AI SDK v7) is given only the tools for the
-   services you've connected, and runs up to 8 steps.
-3. Read actions (search email, list events, read a doc) execute immediately.
-4. Write actions return an **approval proposal** instead of executing. The
-   proposal is persisted and surfaced in the UI.
-5. When you approve, the action runs against the real API with your (optionally
-   edited) values, and the result + an audit entry are recorded.
+# How Relay Works
 
-## Security
+1. A user sends a request.
+2. The AI agent plans the workflow.
+3. Only connected tools are made available.
+4. Read-only actions execute immediately.
+5. Write actions become approval requests.
+6. Once approved, Relay executes the action against the real API.
+7. Every approval and execution is written to the audit log.
 
-- OAuth tokens encrypted at rest with AES-256-GCM (`lib/crypto.ts`).
-- HTTP-only JWT sessions with CSRF protection via Auth.js; 7-day expiry.
-- Every consequential action requires explicit approval.
-- Per-user rate limiting and input sanitization on API routes.
-- Append-only `audit_logs` for every approval decision and execution.
+---
 
-## License
+# Security
 
-MIT
+- AES-256-GCM encrypted OAuth tokens
+- HTTP-only JWT sessions
+- CSRF protection
+- Approval required for all write operations
+- Per-user rate limiting
+- Input sanitization
+- Append-only audit logs
