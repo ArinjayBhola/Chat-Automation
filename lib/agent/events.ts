@@ -12,6 +12,24 @@ export type AgentEvent =
   | { type: "tools"; tools: ToolId[] }
   | { type: "meta"; chatId: string }
   | { type: "error"; message: string }
+  /** Failover: which provider is producing output now, and why it switched. */
+  | {
+      type: "provider";
+      provider: string;
+      label: string;
+      status: "active" | "switched" | "exhausted";
+      reason?: string;
+    }
+  /** Failover: discard streamed-but-uncommitted text, reset to this baseline. */
+  | { type: "reset"; content: string }
+  /** Token + cost accounting for the run (all providers combined). */
+  | {
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      costUsd: number;
+    }
   | { type: "done" };
 
 export function encodeEvent(e: AgentEvent): string {

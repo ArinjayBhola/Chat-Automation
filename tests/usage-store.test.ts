@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+import { getModelUsage, incrementModelUsage } from "@/lib/db-queries";
+
+// No DATABASE_URL in the test env, so these exercise the in-memory fallback -
+// the path that makes usage visible in dev before a DB is provisioned.
+describe("model usage in-memory fallback (no DB)", () => {
+  it("records and accumulates per-model usage for the current window", async () => {
+    const userId = randomUUID();
+    await incrementModelUsage(userId, [
+      {
+        modelId: "groq/llama-3.3-70b",
+        provider: "groq",
+        inputTokens: 100,
+        outputTokens: 20,
+        requests: 1,
+      },
+    ]);
+
+    let rows = await getModelUsage(userId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      modelId: "groq/llama-3.3-70b",
+      provider: "groq",
+      totalTokens: 120,
+      requestCount: 1,
+    });
+
+    // A second run for the same model accumulates rather than replacing.
+    await incrementModelUsage(userId, [
+      {
+        modelId: "groq/llama-3.3-70b",
+        provider: "groq",
+        inputTokens: 200,
+        outputTokens: 30,
+        requests: 1,
+      },
+    ]);
+    rows = await getModelUsage(userId);
+    expect(rows[0].totalTokens).toBe(350);
+    expect(rows[0].requestCount).toBe(2);
+  });
+
+  it("keeps distinct models separate and isolates users", async () => {
+    const userId = randomUUID();
+    await incrementModelUsage(userId, [
+      { modelId: "groq/llama-3.1-8b", provider: "groq", inputTokens: 10, outputTokens: 5, requests: 1 },
+      { modelId: "gpt-4o", provider: "openai", inputTokens: 40, outputTokens: 10, requests: 1 },
+    ]);
+    const rows = await getModelUsage(userId);
+    expect(rows).toHaveLength(2);
+
+    // A different user sees nothing from the above.
+    expect(await getModelUsage(randomUUID())).toEqual([]);
+  });
+});

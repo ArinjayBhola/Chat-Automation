@@ -7,11 +7,19 @@ import {
   jsonb,
   boolean,
   integer,
+  bigint,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { WorkflowNode, WorkflowEdge } from "./types/workflow";
+import type {
+  CompletedStep,
+  FailureRecord,
+  ProviderAttempt,
+  TokenUsage,
+} from "./agent/failover/types";
+import type { ModelMessage } from "ai";
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -58,6 +66,14 @@ export const executionStepStatusEnum = pgEnum("execution_step_status", [
   "pending",
   "running",
   "success",
+  "failed",
+]);
+
+// Agent failover / checkpoint-resume ----------------------------------------
+export const agentRunStatusEnum = pgEnum("agent_run_status", [
+  "running",
+  "switched",
+  "completed",
   "failed",
 ]);
 
@@ -239,6 +255,109 @@ export const auditLogs = pgTable(
   },
   (t) => ({
     userIdx: index("audit_logs_user_idx").on(t.userId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// agent_checkpoints — durable execution state for provider-failover resume
+//
+// One evolving row per agent run, upserted at each step boundary and on every
+// provider switch. Holds the Relay-owned working memory (accumulated messages)
+// plus provider/failure history and token/cost accounting, so a run survives
+// server restarts and its state can be inspected or (durably) resumed.
+// ---------------------------------------------------------------------------
+export const agentCheckpoints = pgTable(
+  "agent_checkpoints",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Stable execution id for the whole run (not the DB row id).
+    runId: uuid("run_id").notNull().unique(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    chatId: uuid("chat_id").references(() => chats.id, { onDelete: "cascade" }),
+    status: agentRunStatusEnum("status").notNull().default("running"),
+    currentStep: integer("current_step").notNull().default(0),
+    activeProvider: text("active_provider"),
+    activeModelId: text("active_model_id"),
+    // Accumulated response messages of all completed steps (the working memory).
+    workingMemory: jsonb("working_memory")
+      .$type<ModelMessage[]>()
+      .notNull()
+      .default([]),
+    completedSteps: jsonb("completed_steps")
+      .$type<CompletedStep[]>()
+      .notNull()
+      .default([]),
+    committedText: text("committed_text").notNull().default(""),
+    providerHistory: jsonb("provider_history")
+      .$type<ProviderAttempt[]>()
+      .notNull()
+      .default([]),
+    failureHistory: jsonb("failure_history")
+      .$type<FailureRecord[]>()
+      .notNull()
+      .default([]),
+    retryCount: integer("retry_count").notNull().default(0),
+    tokenUsage: jsonb("token_usage")
+      .$type<TokenUsage>()
+      .notNull()
+      .default({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }),
+    // Stored as text to avoid float rounding; parsed as a number by callers.
+    costUsd: text("cost_usd").notNull().default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("agent_checkpoints_user_idx").on(t.userId),
+    chatIdx: index("agent_checkpoints_chat_idx").on(t.chatId),
+    statusIdx: index("agent_checkpoints_status_idx").on(t.status),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// model_usage — accurate per-user, per-model token accounting
+//
+// One row per (user, model, monthly window). Incremented from the real AI SDK
+// token usage reported per step, so counts are exact. `windowStart` buckets by
+// calendar month; a new month starts a fresh row. Token columns are bigint to
+// survive heavy monthly totals.
+// ---------------------------------------------------------------------------
+export const modelUsage = pgTable(
+  "model_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    modelId: text("model_id").notNull(),
+    provider: text("provider").notNull(),
+    // First instant of the usage window (month bucket, UTC).
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
+    outputTokens: bigint("output_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    totalTokens: bigint("total_tokens", { mode: "number" }).notNull().default(0),
+    requestCount: integer("request_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userModelWindowIdx: uniqueIndex("model_usage_user_model_window_idx").on(
+      t.userId,
+      t.modelId,
+      t.windowStart,
+    ),
+    userIdx: index("model_usage_user_idx").on(t.userId),
   }),
 );
 
@@ -504,6 +623,13 @@ export type Approval = typeof approvals.$inferSelect;
 export type NewApproval = typeof approvals.$inferInsert;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type NewAuditLog = typeof auditLogs.$inferInsert;
+
+export type AgentCheckpoint = typeof agentCheckpoints.$inferSelect;
+export type NewAgentCheckpoint = typeof agentCheckpoints.$inferInsert;
+export type AgentRunStatus = (typeof agentRunStatusEnum.enumValues)[number];
+
+export type ModelUsageRow = typeof modelUsage.$inferSelect;
+export type NewModelUsageRow = typeof modelUsage.$inferInsert;
 
 export type ToolName = (typeof toolEnum.enumValues)[number];
 export type ActionType = (typeof actionTypeEnum.enumValues)[number];

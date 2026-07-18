@@ -21,8 +21,8 @@ const PROVIDER_ORDER: ProviderId[] = [
 ];
 
 /**
- * Compact, inline model selector designed to sit in the composer toolbar.
- * Renders the active model's label with a chevron; the menu flips upward.
+ * Inline model selector for the composer toolbar. Groups models by provider and
+ * shows each model's label + short description. (Usage lives in Settings.)
  */
 export function ModelPicker({
   models,
@@ -47,25 +47,37 @@ export function ModelPicker({
         aria-label="Choose model"
         className="h-8 w-auto max-w-[11rem] justify-start gap-1.5 rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 data-[state=open]:bg-accent data-[state=open]:text-foreground"
       >
-        {/* Icon and label are sibling children so the trigger's line-clamp
-            only affects the label text — keeps the icon to its left. */}
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
         <span className="truncate">{selected?.label ?? "Select model"}</span>
       </SelectTrigger>
-      <SelectContent align="end" className="max-h-72 w-64">
-        {orderedProviders.map((provider) => (
-          <SelectGroup key={provider}>
+      <SelectContent align="end" className="max-h-96 w-[19rem]">
+        {orderedProviders.map((provider, i) => (
+          <SelectGroup key={provider} className={i > 0 ? "mt-1" : undefined}>
             <SelectLabel>{PROVIDER_LABEL[provider]}</SelectLabel>
             {groups[provider].map((m) => (
-              <SelectItem key={m.id} value={m.id} disabled={!m.available}>
-                <span className="flex items-center gap-2">
-                  {m.label}
-                  {!m.available && (
-                    <span className="text-[10px] text-muted-foreground">
-                      · add key
+              <SelectItem
+                key={m.id}
+                value={m.id}
+                disabled={!m.available}
+                className="py-2"
+              >
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium">
+                      {m.label}
                     </span>
+                    {!m.available && (
+                      <span className="shrink-0 rounded border border-border px-1 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                        add key
+                      </span>
+                    )}
+                  </div>
+                  {m.description && (
+                    <p className="truncate text-[11px] leading-snug text-muted-foreground">
+                      {m.description}
+                    </p>
                   )}
-                </span>
+                </div>
               </SelectItem>
             ))}
           </SelectGroup>

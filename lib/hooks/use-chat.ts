@@ -22,6 +22,17 @@ const WELCOME: ClientMessage = {
   steps: [],
 };
 
+/** Condense a raw provider error into a short, user-friendly cause. */
+function shortReason(reason: string): string {
+  const r = reason.toLowerCase();
+  if (/rate.?limit|429|too many/.test(r)) return "rate limit";
+  if (/quota|exhaust|credit|billing/.test(r)) return "quota exceeded";
+  if (/timeout|timed out/.test(r)) return "timeout";
+  if (/unavailable|overloaded|5\d\d|server/.test(r)) return "provider unavailable";
+  if (/network|connection|fetch failed/.test(r)) return "network error";
+  return "provider error";
+}
+
 export function useChat(initialModelId: string) {
   const [messages, setMessages] = useState<ClientMessage[]>([WELCOME]);
   const [isSending, setIsSending] = useState(false);
@@ -71,6 +82,31 @@ export function useChat(initialModelId: string) {
           break;
         case "tools":
           patchMessage(id, (m) => ({ ...m, toolsUsed: event.tools }));
+          break;
+        case "provider":
+          patchMessage(id, (m) => {
+            const notes =
+              event.status === "switched"
+                ? [
+                    ...(m.providerNotes ?? []),
+                    `Provider switched to ${event.label}` +
+                      (event.reason ? ` (${shortReason(event.reason)})` : "") +
+                      ". Continuing from checkpoint.",
+                  ]
+                : m.providerNotes;
+            return { ...m, activeProvider: event.label, providerNotes: notes };
+          });
+          break;
+        case "reset":
+          // A provider failed mid-sentence; drop its uncommitted tail so the
+          // takeover provider's regenerated text replaces it cleanly.
+          patchMessage(id, (m) => ({ ...m, content: event.content }));
+          break;
+        case "usage":
+          patchMessage(id, (m) => ({
+            ...m,
+            usage: { totalTokens: event.totalTokens, costUsd: event.costUsd },
+          }));
           break;
         case "meta":
           if (chatIdRef.current !== event.chatId) setChatId(event.chatId);

@@ -42,12 +42,32 @@ export function MessageBubble({ message, onApprove, onSkip }: Props) {
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="mb-1 flex items-center gap-2">
           <span className="text-sm font-semibold">Relay</span>
+          {message.activeProvider && (
+            <span className="inline-flex items-center gap-1 rounded-md border bg-card px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {message.activeProvider}
+            </span>
+          )}
           {!message.thinking && (
             <span className="text-[10px] text-muted-foreground">
               {formatTime(message.createdAt)}
             </span>
           )}
         </div>
+
+        {/* Provider failover notes (transparent takeover between providers). */}
+        {message.providerNotes && message.providerNotes.length > 0 && (
+          <div className="mb-2 flex flex-col gap-1">
+            {message.providerNotes.map((note, i) => (
+              <p
+                key={i}
+                className="text-[11px] italic text-muted-foreground"
+              >
+                {note}
+              </p>
+            ))}
+          </div>
+        )}
 
         {message.thinking && !message.content ? (
           <ThinkingDots />

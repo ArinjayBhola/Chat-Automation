@@ -1,8 +1,12 @@
 import "server-only";
-import { streamText, stepCountIs, type ModelMessage } from "ai";
-import { resolveModel } from "../ai/provider";
+import { type ModelMessage } from "ai";
 import { buildTools, type AgentContext } from "./tools";
 import { TOOL_META, type ToolId } from "../types";
+import { ExecutionState } from "./failover/execution-state";
+import { ExecutionEngine } from "./failover/execution-engine";
+import { ProviderManager } from "./failover/provider-manager";
+import { CheckpointManager } from "./failover/checkpoint-manager";
+import { getHealthMonitor } from "./failover/health-monitor";
 
 const MAX_STEPS = 8;
 
@@ -29,24 +33,44 @@ Operating rules:
 - Finish with a concise, human-readable summary of what you did, what's pending approval, and any errors. Use markdown.`;
 }
 
-export async function createAgentStream(opts: {
+/**
+ * Build a failover-aware, checkpoint-based agent run.
+ *
+ * Instead of binding to a single provider, this returns an ExecutionEngine that
+ * streams over the provider chain: it commits each completed step into
+ * Relay-owned working memory (ExecutionState) and, on a recoverable provider
+ * failure, hands that same memory to the next provider so the run continues
+ * from the point of failure rather than restarting. Checkpoints are persisted
+ * to Postgres (best-effort) at every step boundary and provider switch.
+ */
+export function createAgentRun(opts: {
   ctx: AgentContext;
   modelId: string;
   messages: ModelMessage[];
-}) {
-  const resolved = await resolveModel(opts.modelId);
-  if (!resolved) return null; // no provider configured → caller uses mock
-
+  chatId?: string;
+}): { engine: ExecutionEngine; state: ExecutionState } {
   const connected = [...opts.ctx.connected];
   const tools = buildTools(opts.ctx);
+  const health = getHealthMonitor();
 
-  const result = streamText({
-    model: resolved.model,
-    system: systemPrompt(connected),
-    messages: opts.messages,
-    tools,
-    stopWhen: stepCountIs(MAX_STEPS),
+  const state = new ExecutionState({
+    userId: opts.ctx.userId,
+    input: opts.messages,
+    chatId: opts.chatId,
   });
 
-  return { result, modelInfo: resolved.info };
+  const checkpoints = new CheckpointManager();
+
+  const engine = new ExecutionEngine({
+    state,
+    requestedModelId: opts.modelId,
+    system: systemPrompt(connected),
+    tools,
+    providerManager: new ProviderManager({ health }),
+    health,
+    checkpoint: (s) => checkpoints.save(s),
+    maxSteps: MAX_STEPS,
+  });
+
+  return { engine, state };
 }

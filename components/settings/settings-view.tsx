@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { ToolConnections } from "@/components/chat/tool-connections";
+import { UsageSection } from "@/components/settings/usage-section";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn, timeAgo } from "@/lib/utils";
@@ -120,6 +121,8 @@ export function SettingsView({ initial }: { initial: Initial }) {
               <ToolConnections />
             </CardContent>
           </Card>
+
+          <UsageSection />
 
           <ArchivedSection />
 

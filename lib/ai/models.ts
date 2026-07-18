@@ -221,7 +221,64 @@ export const PROVIDER_LABEL: Record<ProviderId, string> = {
 
 /** Whether any provider has credentials; if false the agent can't run. */
 export function anyProviderConfigured(): boolean {
-  return (["anthropic", "openai", "google", "openrouter", "groq", "opensource"] as ProviderId[]).some(
-    providerConfigured,
-  );
+  return ALL_PROVIDERS.some(providerConfigured);
+}
+
+export const ALL_PROVIDERS: ProviderId[] = [
+  "anthropic",
+  "openai",
+  "google",
+  "openrouter",
+  "groq",
+  "opensource",
+];
+
+/**
+ * Default order in which providers are tried during failover, highest
+ * priority first. Overridable with `PROVIDER_FAILOVER_ORDER` (comma-separated
+ * provider ids). Unknown ids are ignored; providers omitted from the env value
+ * are appended in their default order so nothing configured is ever unreachable.
+ */
+export function providerPriority(): ProviderId[] {
+  const raw = process.env.PROVIDER_FAILOVER_ORDER;
+  const fallbackDefault: ProviderId[] = [
+    "groq",
+    "openrouter",
+    "openai",
+    "anthropic",
+    "google",
+    "opensource",
+  ];
+  if (!raw) return fallbackDefault;
+  const wanted = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s): s is ProviderId => ALL_PROVIDERS.includes(s as ProviderId));
+  const seen = new Set(wanted);
+  return [...wanted, ...fallbackDefault.filter((p) => !seen.has(p))];
+}
+
+/**
+ * The representative model id to use when failing over TO a given provider (we
+ * cannot reuse the requested model id because it is provider-specific). Picks a
+ * strong, agent-capable default per provider. `opensource` is resolved at
+ * runtime from the gateway's configured model list.
+ */
+export function failoverModelId(provider: ProviderId): string | null {
+  switch (provider) {
+    case "anthropic":
+      return "claude-sonnet-4-6";
+    case "openai":
+      return "gpt-4o";
+    case "google":
+      return "gemini-2.0-flash";
+    case "openrouter":
+      return "or/llama-3.3-70b";
+    case "groq":
+      return "groq/llama-3.3-70b";
+    case "opensource": {
+      const oss = opensourceModels()[0];
+      return oss?.id ?? null;
+    }
+  }
 }

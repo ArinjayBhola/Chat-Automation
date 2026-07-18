@@ -82,6 +82,12 @@ export type ClientMessage = {
   thinking?: boolean;
   /** True once the stream has fully finished (drives the steps "Done" row). */
   done?: boolean;
+  /** Failover: label of the provider currently producing this message. */
+  activeProvider?: string;
+  /** Failover: human notes about provider switches during this run. */
+  providerNotes?: string[];
+  /** Token + cost accounting for the run, once known. */
+  usage?: { totalTokens: number; costUsd: number };
 };
 
 export type ChatRequest = {

@@ -14,17 +14,21 @@ import {
 import { db, isDbEnabled } from "./db";
 import { cached, invalidatePrefix, TTL } from "./cache";
 import {
+  agentCheckpoints,
   approvals,
   auditLogs,
   chats,
   executionSteps,
   messages,
+  modelUsage,
   toolConnections,
   users,
   workflowExecutions,
   workflows,
   workflowSchedules,
   workflowVersions,
+  type AgentCheckpoint,
+  type ModelUsageRow,
   type Approval,
   type ExecutionStepRow,
   type NewApproval,
@@ -519,6 +523,234 @@ export async function insertAuditLog(input: NewAuditLog) {
     // Audit must never break the main flow.
     console.error("[audit] failed to write log:", e);
   }
+}
+
+// ---- agent checkpoints (provider-failover resume) -------------------------
+export type CheckpointRecord = {
+  runId: string;
+  userId: string;
+  chatId?: string | null;
+  status: "running" | "switched" | "completed" | "failed";
+  currentStep: number;
+  activeProvider: string | null;
+  activeModelId: string | null;
+  workingMemory: unknown[];
+  completedSteps: unknown[];
+  committedText: string;
+  providerHistory: unknown[];
+  failureHistory: unknown[];
+  retryCount: number;
+  tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  costUsd: number;
+};
+
+/**
+ * Insert-or-update the single checkpoint row for a run (keyed by runId). Called
+ * at every step boundary and provider switch. No-ops without a database so the
+ * live in-request failover path keeps working even when persistence is off.
+ */
+export async function upsertCheckpoint(
+  rec: CheckpointRecord,
+): Promise<AgentCheckpoint | null> {
+  if (!isDbEnabled || !db) return null;
+  // A chatId is only valid once the chat row exists; store null otherwise so we
+  // never violate the FK for an as-yet-unpersisted chat.
+  const chatId = rec.chatId ?? null;
+  const values = {
+    runId: rec.runId,
+    userId: rec.userId,
+    chatId,
+    status: rec.status,
+    currentStep: rec.currentStep,
+    activeProvider: rec.activeProvider,
+    activeModelId: rec.activeModelId,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    workingMemory: rec.workingMemory as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    completedSteps: rec.completedSteps as any,
+    committedText: rec.committedText,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    providerHistory: rec.providerHistory as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    failureHistory: rec.failureHistory as any,
+    retryCount: rec.retryCount,
+    tokenUsage: rec.tokenUsage,
+    costUsd: String(rec.costUsd),
+  };
+  const [row] = await db
+    .insert(agentCheckpoints)
+    .values(values)
+    .onConflictDoUpdate({
+      target: agentCheckpoints.runId,
+      set: { ...values, updatedAt: new Date() },
+    })
+    .returning();
+  return row ?? null;
+}
+
+export async function getLatestCheckpoint(
+  runId: string,
+  userId: string,
+): Promise<AgentCheckpoint | null> {
+  if (!isDbEnabled || !db) return null;
+  const rows = await db
+    .select()
+    .from(agentCheckpoints)
+    .where(
+      and(
+        eq(agentCheckpoints.runId, runId),
+        eq(agentCheckpoints.userId, userId),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+// ---- model usage (per-model token accounting) -----------------------------
+export type UsageDelta = {
+  modelId: string;
+  provider: string;
+  inputTokens: number;
+  outputTokens: number;
+  requests: number;
+};
+
+/** Light usage row returned to callers (DB and in-memory produce the same shape). */
+export type UsageRow = {
+  modelId: string;
+  provider: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  requestCount: number;
+};
+
+/** First instant of the current calendar month, UTC - the usage window key. */
+export function currentUsageWindow(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/**
+ * In-memory usage fallback used when no database is configured, so the tracker
+ * still works in dev / before a DB is provisioned. Cached on globalThis to
+ * survive HMR; per server process (not shared across serverless instances, and
+ * not durable across restarts - provision a DB for that).
+ */
+type MemBucket = Map<string, UsageRow>; // key: `${modelId}`
+const globalForUsage = globalThis as unknown as {
+  __usageMem?: Map<string, MemBucket>; // key: `${userId}|${windowISO}`
+};
+function memStore(): Map<string, MemBucket> {
+  return (globalForUsage.__usageMem ??= new Map());
+}
+function memBucket(userId: string, windowStart: Date): MemBucket {
+  const key = `${userId}|${windowStart.toISOString()}`;
+  const store = memStore();
+  let bucket = store.get(key);
+  if (!bucket) {
+    bucket = new Map();
+    store.set(key, bucket);
+  }
+  return bucket;
+}
+
+/**
+ * Atomically add token/request deltas to each model's usage for the current
+ * window. With a DB it upserts on the unique (user, model, window) index with
+ * SQL increments so concurrent runs cannot lose counts; without a DB it updates
+ * the in-memory store so usage is still visible.
+ */
+export async function incrementModelUsage(
+  userId: string,
+  deltas: UsageDelta[],
+): Promise<void> {
+  if (deltas.length === 0) return;
+  const windowStart = currentUsageWindow();
+
+  if (!isDbEnabled || !db) {
+    const bucket = memBucket(userId, windowStart);
+    for (const d of deltas) {
+      if (d.inputTokens <= 0 && d.outputTokens <= 0 && d.requests <= 0) continue;
+      const prev =
+        bucket.get(d.modelId) ??
+        ({
+          modelId: d.modelId,
+          provider: d.provider,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          requestCount: 0,
+        } satisfies UsageRow);
+      prev.inputTokens += d.inputTokens;
+      prev.outputTokens += d.outputTokens;
+      prev.totalTokens += d.inputTokens + d.outputTokens;
+      prev.requestCount += d.requests;
+      bucket.set(d.modelId, prev);
+    }
+    return;
+  }
+
+  for (const d of deltas) {
+    if (d.inputTokens <= 0 && d.outputTokens <= 0 && d.requests <= 0) continue;
+    const total = d.inputTokens + d.outputTokens;
+    await db
+      .insert(modelUsage)
+      .values({
+        userId,
+        modelId: d.modelId,
+        provider: d.provider,
+        windowStart,
+        inputTokens: d.inputTokens,
+        outputTokens: d.outputTokens,
+        totalTokens: total,
+        requestCount: d.requests,
+      })
+      .onConflictDoUpdate({
+        target: [
+          modelUsage.userId,
+          modelUsage.modelId,
+          modelUsage.windowStart,
+        ],
+        set: {
+          inputTokens: sql`${modelUsage.inputTokens} + ${d.inputTokens}`,
+          outputTokens: sql`${modelUsage.outputTokens} + ${d.outputTokens}`,
+          totalTokens: sql`${modelUsage.totalTokens} + ${total}`,
+          requestCount: sql`${modelUsage.requestCount} + ${d.requests}`,
+          updatedAt: new Date(),
+        },
+      });
+  }
+}
+
+/** A user's per-model usage for the current window (DB, else in-memory). */
+export async function getModelUsage(userId: string): Promise<UsageRow[]> {
+  const windowStart = currentUsageWindow();
+
+  if (!isDbEnabled || !db) {
+    const bucket = memStore().get(`${userId}|${windowStart.toISOString()}`);
+    if (!bucket) return [];
+    return [...bucket.values()].sort((a, b) => b.totalTokens - a.totalTokens);
+  }
+
+  const rows: ModelUsageRow[] = await db
+    .select()
+    .from(modelUsage)
+    .where(
+      and(
+        eq(modelUsage.userId, userId),
+        eq(modelUsage.windowStart, windowStart),
+      ),
+    )
+    .orderBy(desc(modelUsage.totalTokens));
+
+  return rows.map((r) => ({
+    modelId: r.modelId,
+    provider: r.provider,
+    inputTokens: r.inputTokens,
+    outputTokens: r.outputTokens,
+    totalTokens: r.totalTokens,
+    requestCount: r.requestCount,
+  }));
 }
 
 // ===========================================================================

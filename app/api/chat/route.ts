@@ -8,12 +8,13 @@ import {
   createApproval,
   ensureChat,
   getToolConnections,
+  incrementModelUsage,
   insertAuditLog,
   insertMessage,
   listChats,
 } from "@/lib/db-queries";
-import { anyProviderConfigured } from "@/lib/ai/models";
-import { createAgentStream } from "@/lib/agent/agent";
+import { createAgentRun } from "@/lib/agent/agent";
+import type { EngineEvent } from "@/lib/agent/failover/types";
 import { generateChatTitle } from "@/lib/agent/title";
 import { toolNameToToolId } from "@/lib/agent/tools";
 import { encodeEvent, type AgentEvent } from "@/lib/agent/events";
@@ -130,30 +131,33 @@ export async function POST(req: Request) {
       };
 
       try {
-        const agent = await createAgentStream({
+        const { engine, state } = createAgentRun({
           ctx: { userId, connected },
           modelId: modelId ?? "claude-opus-4-8",
           messages,
+          chatId,
         });
 
-        if (!agent) {
-          send({
-            type: "text",
-            value: anyProviderConfigured()
-              ? "The selected model isn't available right now. Pick another model from the sidebar."
-              : "No AI model is configured on this server yet. Add a provider API key (for example `ANTHROPIC_API_KEY`) to start chatting.",
-          });
-        } else {
-          await runReal(send, acc, agent.result.fullStream);
-          if (persist) {
-            await persistTurn(send, {
-              userId,
-              chatId,
-              message,
-              acc,
-              modelId: modelId ?? "claude-opus-4-8",
-            });
+        await runReal(send, acc, engine.run());
+
+        // Record accurate per-model token usage for the tracker (best-effort,
+        // never blocks the response; requires a DB).
+        if (isDbEnabled) {
+          try {
+            await incrementModelUsage(userId, state.modelUsageDeltas);
+          } catch (e) {
+            console.error("[chat] usage tracking failed:", e);
           }
+        }
+
+        if (persist) {
+          await persistTurn(send, {
+            userId,
+            chatId,
+            message,
+            acc,
+            modelId: modelId ?? "claude-opus-4-8",
+          });
         }
       } catch (e) {
         send({
@@ -247,14 +251,62 @@ async function persistTurn(
 }
 
 // ---------------------------------------------------------------------------
-// Real agent → events
+// Engine events → client events
+//
+// The ExecutionEngine yields provider-agnostic events: `sdk` parts (the AI SDK
+// fullStream, mapped by handleSdkPart exactly as before) plus failover control
+// events (provider switches, text resets, usage). Failover is transparent to
+// the existing chat UI except for the new provider status line.
 // ---------------------------------------------------------------------------
 async function runReal(
   send: (e: AgentEvent) => void,
   acc: Accumulator,
-  fullStream: AsyncIterable<unknown>,
+  events: AsyncIterable<EngineEvent>,
 ) {
-  for await (const raw of fullStream) {
+  for await (const event of events) {
+    switch (event.kind) {
+      case "sdk":
+        handleSdkPart(send, acc, event.part);
+        break;
+      case "provider":
+        send({
+          type: "provider",
+          provider: event.provider,
+          label: event.label,
+          status: event.status,
+          reason: event.reason,
+        });
+        break;
+      case "reset":
+        // Drop the failed provider's uncommitted tail from the persisted copy
+        // and tell the client to trim what it already rendered.
+        acc.content = event.committedText;
+        send({ type: "reset", content: event.committedText });
+        break;
+      case "usage":
+        send({
+          type: "usage",
+          inputTokens: event.usage.inputTokens,
+          outputTokens: event.usage.outputTokens,
+          totalTokens: event.usage.totalTokens,
+          costUsd: event.costUsd,
+        });
+        break;
+      case "error":
+        send({ type: "error", message: event.message });
+        break;
+    }
+  }
+
+  send({ type: "tools", tools: [...acc.tools] });
+}
+
+function handleSdkPart(
+  send: (e: AgentEvent) => void,
+  acc: Accumulator,
+  raw: unknown,
+) {
+  {
     const part = raw as Record<string, unknown>;
     const type = part.type as string;
 
@@ -266,7 +318,7 @@ async function runReal(
         acc.content += value;
         send({ type: "text", value });
       }
-      continue;
+      return;
     }
 
     if (type === "tool-call") {
@@ -287,7 +339,7 @@ async function runReal(
       };
       acc.steps.set(id, step);
       send({ type: "step", step });
-      continue;
+      return;
     }
 
     if (type === "tool-result") {
@@ -320,7 +372,7 @@ async function runReal(
         // Carry the op so the client can echo it back for the no-DB fallback.
         send({ type: "approval", approval: { ...approval, op: op ?? undefined } });
       }
-      continue;
+      return;
     }
 
     if (type === "tool-error") {
@@ -334,7 +386,7 @@ async function runReal(
       };
       acc.steps.set(id, step);
       send({ type: "step", step });
-      continue;
+      return;
     }
 
     if (type === "error") {
@@ -345,8 +397,6 @@ async function runReal(
       });
     }
   }
-
-  send({ type: "tools", tools: [...acc.tools] });
 }
 
 /** Friendly, human-readable label per tool for the steps timeline. */
