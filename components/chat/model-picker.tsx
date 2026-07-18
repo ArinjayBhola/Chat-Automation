@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { Sparkles, BrainCircuit, Cpu, Globe, Router, Zap, Code } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -20,9 +20,18 @@ const PROVIDER_ORDER: ProviderId[] = [
   "opensource",
 ];
 
+const PROVIDER_ICONS: Record<ProviderId, React.ElementType> = {
+  anthropic: BrainCircuit,
+  openai: Cpu,
+  google: Globe,
+  openrouter: Router,
+  groq: Zap,
+  opensource: Code,
+};
+
 /**
- * Inline model selector for the composer toolbar. Groups models by provider and
- * shows each model's label + short description. (Usage lives in Settings.)
+ * Inline model selector for the composer toolbar. Groups models by provider;
+ * each row shows the label and a short description. Usage lives in Settings.
  */
 export function ModelPicker({
   models,
@@ -40,48 +49,55 @@ export function ModelPicker({
 
   const orderedProviders = PROVIDER_ORDER.filter((p) => groups[p]?.length);
   const selected = models.find((m) => m.id === value);
+  const SelectedIcon = selected ? PROVIDER_ICONS[selected.provider] : Sparkles;
 
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         aria-label="Choose model"
-        className="h-8 w-auto max-w-[11rem] justify-start gap-1.5 rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 data-[state=open]:bg-accent data-[state=open]:text-foreground"
+        className="h-8 w-auto max-w-[12rem] justify-start gap-1.5 rounded-full border border-border/40 bg-background/60 px-2.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-md transition-all hover:bg-accent hover:border-border focus:ring-2 focus:ring-primary/20 data-[state=open]:bg-accent data-[state=open]:border-border"
       >
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <SelectedIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
         <span className="truncate">{selected?.label ?? "Select model"}</span>
       </SelectTrigger>
-      <SelectContent align="end" className="max-h-96 w-[19rem]">
-        {orderedProviders.map((provider, i) => (
-          <SelectGroup key={provider} className={i > 0 ? "mt-1" : undefined}>
-            <SelectLabel>{PROVIDER_LABEL[provider]}</SelectLabel>
-            {groups[provider].map((m) => (
-              <SelectItem
-                key={m.id}
-                value={m.id}
-                disabled={!m.available}
-                className="py-2"
-              >
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {m.label}
-                    </span>
-                    {!m.available && (
-                      <span className="shrink-0 rounded border border-border px-1 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                        add key
+      <SelectContent align="end" className="max-h-[22rem] w-[18rem] rounded-xl border border-border/50 bg-background/80 p-1 shadow-2xl backdrop-blur-xl">
+        {orderedProviders.map((provider) => {
+          const Icon = PROVIDER_ICONS[provider];
+          return (
+            <SelectGroup key={provider} className="mb-1.5 last:mb-0">
+              <SelectLabel className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                <Icon className="h-3.5 w-3.5" />
+                {PROVIDER_LABEL[provider]}
+              </SelectLabel>
+              {groups[provider].map((m) => (
+                <SelectItem
+                  key={m.id}
+                  value={m.id}
+                  disabled={!m.available}
+                  className="mb-0.5 cursor-pointer rounded-lg px-2 py-1.5 transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:opacity-40"
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <span className="truncate text-[13px] font-medium leading-none">
+                        {m.label}
                       </span>
+                      {!m.available && (
+                        <span className="shrink-0 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
+                          Setup
+                        </span>
+                      )}
+                    </div>
+                    {m.description && (
+                      <p className="line-clamp-1 text-xs leading-snug text-muted-foreground/80">
+                        {m.description}
+                      </p>
                     )}
                   </div>
-                  {m.description && (
-                    <p className="truncate text-[11px] leading-snug text-muted-foreground">
-                      {m.description}
-                    </p>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        ))}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          );
+        })}
       </SelectContent>
     </Select>
   );

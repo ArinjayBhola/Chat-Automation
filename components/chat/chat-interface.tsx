@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Header } from "./header";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
@@ -27,7 +27,9 @@ export function ChatInterface({
   defaultModelId: string;
 }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const params = useParams();
+  const routeChatId =
+    typeof params?.chatId === "string" ? params.chatId : undefined;
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [chatsLoading, setChatsLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
@@ -42,7 +44,15 @@ export function ChatInterface({
     resolveApproval,
     reset,
     loadChat,
-  } = useChat(defaultModelId);
+  } = useChat(defaultModelId, {
+    // A brand-new chat just got its id: reflect it in the URL without a reload.
+    onChatCreated: (id) => router.replace(`/chat/${id}`),
+  });
+
+  // Keep the current chat id in a ref so the route-sync effect can read it
+  // without re-running (and re-fetching) every time it changes.
+  const activeChatIdRef = useRef<string | undefined>(chatId);
+  activeChatIdRef.current = chatId;
 
   const refreshChats = useCallback(async () => {
     try {
@@ -62,37 +72,42 @@ export function ChatInterface({
     refreshChats();
   }, [refreshChats, chatId]);
 
-  // Open a specific chat when arrived via `/chat?c=<id>` (e.g. from settings),
-  // then strip the param so refreshes don't reload it.
-  const openedFromUrl = useRef(false);
+  // Route is the source of truth: /chat -> blank new chat, /chat/[id] -> that
+  // chat. Load or reset when the route param changes. Skipping when it already
+  // matches the active chat avoids re-fetching a chat we just created (whose id
+  // was pushed into the URL by onChatCreated).
   useEffect(() => {
-    const c = searchParams.get("c");
-    if (c && !openedFromUrl.current) {
-      openedFromUrl.current = true;
-      loadChat(c);
-      router.replace("/chat");
+    if (!routeChatId) {
+      if (activeChatIdRef.current) reset();
+      return;
     }
-  }, [searchParams, loadChat, router]);
+    if (routeChatId !== activeChatIdRef.current) loadChat(routeChatId);
+  }, [routeChatId, loadChat, reset]);
 
   const handleSelectChat = useCallback(
     (id: string) => {
-      loadChat(id);
+      if (id !== activeChatIdRef.current) router.push(`/chat/${id}`);
     },
-    [loadChat],
+    [router],
   );
+
+  const handleNewChat = useCallback(() => {
+    reset();
+    router.push("/chat");
+  }, [reset, router]);
 
   const confirmDeleteChat = useCallback(async () => {
     const id = pendingDelete;
     if (!id) return;
     setPendingDelete(null);
     setChats((prev) => prev.filter((c) => c.id !== id));
-    if (id === chatId) reset();
+    if (id === chatId) router.push("/chat");
     try {
       await fetch(`/api/chat/${id}`, { method: "DELETE" });
     } finally {
       refreshChats();
     }
-  }, [pendingDelete, chatId, reset, refreshChats]);
+  }, [pendingDelete, chatId, router, refreshChats]);
 
   const handleRenameChat = useCallback(
     async (id: string, title: string) => {
@@ -134,7 +149,7 @@ export function ChatInterface({
   const handleArchiveChat = useCallback(
     async (id: string) => {
       setChats((prev) => prev.filter((c) => c.id !== id));
-      if (id === chatId) reset();
+      if (id === chatId) router.push("/chat");
       try {
         await fetch(`/api/chat/${id}`, {
           method: "PATCH",
@@ -145,7 +160,7 @@ export function ChatInterface({
         refreshChats();
       }
     },
-    [chatId, reset, refreshChats],
+    [chatId, router, refreshChats],
   );
 
   const activeTitle = chats.find((c) => c.id === chatId)?.title ?? "New chat";
@@ -163,7 +178,7 @@ export function ChatInterface({
         onRenameChat: handleRenameChat,
         onPinChat: handlePinChat,
         onArchiveChat: handleArchiveChat,
-        onNewChat: reset,
+        onNewChat: handleNewChat,
       }}
     >
       {({ toggleSidebar }) => (
@@ -171,7 +186,7 @@ export function ChatInterface({
           <Header
             title={activeTitle}
             onToggleSidebar={toggleSidebar}
-            onNewChat={reset}
+            onNewChat={handleNewChat}
           />
           <MessageList
             messages={messages}

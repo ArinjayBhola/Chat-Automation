@@ -33,7 +33,15 @@ function shortReason(reason: string): string {
   return "provider error";
 }
 
-export function useChat(initialModelId: string) {
+export function useChat(
+  initialModelId: string,
+  options?: {
+    /** Fired once when a NEW chat id is assigned (first message persisted). */
+    onChatCreated?: (chatId: string) => void;
+  },
+) {
+  const onChatCreatedRef = useRef(options?.onChatCreated);
+  onChatCreatedRef.current = options?.onChatCreated;
   const [messages, setMessages] = useState<ClientMessage[]>([WELCOME]);
   const [isSending, setIsSending] = useState(false);
   const [modelId, setModelId] = useState(initialModelId);
@@ -109,7 +117,12 @@ export function useChat(initialModelId: string) {
           }));
           break;
         case "meta":
-          if (chatIdRef.current !== event.chatId) setChatId(event.chatId);
+          if (chatIdRef.current !== event.chatId) {
+            const isNew = !chatIdRef.current;
+            setChatId(event.chatId);
+            // Only a brand-new chat (no prior id) should drive a URL change.
+            if (isNew) onChatCreatedRef.current?.(event.chatId);
+          }
           break;
         case "error":
           patchMessage(id, (m) => ({
