@@ -14,13 +14,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import { useWorkflowStore } from "@/lib/stores/workflow-store";
 import { ScheduleDialog } from "./schedule-dialog";
 
-type Note = { kind: "ok" | "err"; text: string } | null;
-
 export function WorkflowToolbar() {
+  const { toast } = useToast();
   const meta = useWorkflowStore((s) => s.meta);
   const dirty = useWorkflowStore((s) => s.dirty);
   const saving = useWorkflowStore((s) => s.saving);
@@ -30,7 +29,6 @@ export function WorkflowToolbar() {
   const test = useWorkflowStore((s) => s.test);
 
   const [busy, setBusy] = useState<"save" | "test" | "publish" | null>(null);
-  const [note, setNote] = useState<Note>(null);
   const [showSchedules, setShowSchedules] = useState(false);
 
   if (!meta) {
@@ -46,33 +44,37 @@ export function WorkflowToolbar() {
 
   async function run(kind: "save" | "test" | "publish") {
     setBusy(kind);
-    setNote(null);
     try {
       if (kind === "save") {
         const ok = await save();
-        setNote(
+        toast(
           ok
-            ? { kind: "ok", text: "Saved." }
-            : { kind: "err", text: "Could not save." },
+            ? { variant: "success", title: "Workflow saved" }
+            : { variant: "error", title: "Couldn't save", description: "Please try again." },
         );
       } else if (kind === "test") {
         const result = await test();
         if (!result) {
-          setNote({ kind: "err", text: "Test failed to run." });
+          toast({ variant: "error", title: "Test failed to run" });
         } else if (result.ok) {
-          setNote({
-            kind: "ok",
-            text: `Looks valid: ${result.nodeCount} nodes, ${result.edgeCount} connections.`,
+          toast({
+            variant: "success",
+            title: "Workflow looks valid",
+            description: `${result.nodeCount} nodes, ${result.edgeCount} connections.`,
           });
         } else {
-          setNote({ kind: "err", text: result.issues[0] ?? "Validation issues found." });
+          toast({
+            variant: "error",
+            title: "Validation issues found",
+            description: result.issues[0] ?? "Check the canvas and try again.",
+          });
         }
       } else {
         const res = await publish();
-        setNote(
+        toast(
           res.ok
-            ? { kind: "ok", text: "Published." }
-            : { kind: "err", text: res.error ?? "Publish failed." },
+            ? { variant: "success", title: "Workflow published", description: "It can now run on schedule." }
+            : { variant: "error", title: "Publish failed", description: res.error ?? "Please try again." },
         );
       }
     } finally {
@@ -116,16 +118,6 @@ export function WorkflowToolbar() {
       </div>
 
       <div className="flex items-center gap-2">
-        {note && (
-          <span
-            className={cn(
-              "max-w-[16rem] truncate text-xs",
-              note.kind === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
-            )}
-          >
-            {note.text}
-          </span>
-        )}
         <Button
           variant="outline"
           size="sm"

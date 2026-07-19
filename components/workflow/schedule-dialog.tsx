@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 // Kept local (not imported from lib/workflows/cron.ts) so this client bundle
@@ -102,6 +103,7 @@ export function ScheduleDialog({
   published: boolean;
   onClose: () => void;
 }) {
+  const { toast } = useToast();
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [executions, setExecutions] = useState<ExecutionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,6 +168,13 @@ export function ScheduleDialog({
       }
       setName("");
       await load();
+      toast({
+        variant: "success",
+        title: "Schedule created",
+        description: published
+          ? undefined
+          : "Publish the workflow to activate it.",
+      });
     } finally {
       setCreating(false);
     }
@@ -180,6 +189,7 @@ export function ScheduleDialog({
         body: JSON.stringify({ isActive: !s.isActive }),
       });
       await load();
+      toast({ title: s.isActive ? "Schedule paused" : "Schedule resumed" });
     } finally {
       setBusyId(null);
     }
@@ -192,6 +202,7 @@ export function ScheduleDialog({
         method: "DELETE",
       });
       setSchedules((prev) => prev.filter((x) => x.id !== s.id));
+      toast({ title: "Schedule deleted" });
     } finally {
       setBusyId(null);
     }

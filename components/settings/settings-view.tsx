@@ -29,7 +29,8 @@ import { ToolConnections } from "@/components/chat/tool-connections";
 import { UsageSection } from "@/components/settings/usage-section";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { cn, timeAgo } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
+import { timeAgo } from "@/lib/utils";
 
 type Initial = {
   name: string;
@@ -38,8 +39,6 @@ type Initial = {
   hasPassword: boolean;
   isOAuth: boolean;
 };
-
-type Note = { kind: "ok" | "err"; text: string } | null;
 
 function initials(name?: string | null) {
   if (!name) return "U";
@@ -145,15 +144,14 @@ function ProfileSection({
   initial: Initial;
   onSaved: (name: string, email: string) => Promise<void>;
 }) {
+  const { toast } = useToast();
   const [name, setName] = useState(initial.name);
   const [email, setEmail] = useState(initial.email);
   const [saving, setSaving] = useState(false);
-  const [note, setNote] = useState<Note>(null);
 
   const dirty = name !== initial.name || email !== initial.email;
 
   async function save() {
-    setNote(null);
     setSaving(true);
     try {
       const res = await fetch("/api/account/profile", {
@@ -163,13 +161,21 @@ function ProfileSection({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNote({ kind: "err", text: data.error ?? "Couldn't save changes." });
+        toast({
+          variant: "error",
+          title: "Couldn't save changes",
+          description: data.error ?? "Please try again.",
+        });
         return;
       }
-      setNote({ kind: "ok", text: "Profile updated." });
+      toast({ variant: "success", title: "Profile updated" });
       await onSaved(data.user?.name ?? name, data.user?.email ?? email);
     } catch {
-      setNote({ kind: "err", text: "Network error. Please try again." });
+      toast({
+        variant: "error",
+        title: "Network error",
+        description: "Please try again.",
+      });
     } finally {
       setSaving(false);
     }
@@ -222,8 +228,6 @@ function ProfileSection({
           />
         </div>
 
-        <NoteLine note={note} />
-
         <div className="flex justify-end">
           <Button onClick={save} disabled={!dirty || saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -245,21 +249,27 @@ function PasswordSection({
   hasPassword: boolean;
   isOAuth: boolean;
 }) {
+  const { toast } = useToast();
   const [hasPassword, setHasPassword] = useState(initialHasPassword);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
-  const [note, setNote] = useState<Note>(null);
+
+  const tooShort = next.length > 0 && next.length < 8;
+  const mismatch = confirm.length > 0 && next !== confirm;
 
   async function save() {
-    setNote(null);
     if (next.length < 8) {
-      setNote({ kind: "err", text: "Password must be at least 8 characters." });
+      toast({
+        variant: "error",
+        title: "Password too short",
+        description: "Use at least 8 characters.",
+      });
       return;
     }
     if (next !== confirm) {
-      setNote({ kind: "err", text: "Passwords don't match." });
+      toast({ variant: "error", title: "Passwords don't match" });
       return;
     }
     setSaving(true);
@@ -274,21 +284,30 @@ function PasswordSection({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNote({ kind: "err", text: data.error ?? "Couldn't update password." });
+        toast({
+          variant: "error",
+          title: "Couldn't update password",
+          description: data.error ?? "Please try again.",
+        });
         return;
       }
       setHasPassword(true);
       setCurrent("");
       setNext("");
       setConfirm("");
-      setNote({
-        kind: "ok",
-        text: hasPassword
-          ? "Password updated."
-          : "Password created — you can now sign in with email and password.",
+      toast({
+        variant: "success",
+        title: hasPassword ? "Password updated" : "Password created",
+        description: hasPassword
+          ? undefined
+          : "You can now sign in with email and password.",
       });
     } catch {
-      setNote({ kind: "err", text: "Network error. Please try again." });
+      toast({
+        variant: "error",
+        title: "Network error",
+        description: "Please try again.",
+      });
     } finally {
       setSaving(false);
     }
@@ -331,6 +350,11 @@ function PasswordSection({
             placeholder="At least 8 characters"
             onChange={(e) => setNext(e.target.value)}
           />
+          {tooShort && (
+            <p className="text-xs text-destructive">
+              Use at least 8 characters.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -341,9 +365,10 @@ function PasswordSection({
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
           />
+          {mismatch && (
+            <p className="text-xs text-destructive">Passwords don&apos;t match.</p>
+          )}
         </div>
-
-        <NoteLine note={note} />
 
         <div className="flex justify-end">
           <Button onClick={save} disabled={saving || !next}>
@@ -481,29 +506,36 @@ function ArchivedSection() {
 // ---------------------------------------------------------------------------
 function DataSection() {
   const router = useRouter();
-  const [note, setNote] = useState<Note>(null);
+  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
   async function deleteChats() {
-    setNote(null);
     setBusy(true);
     try {
       const res = await fetch("/api/account/chats", { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNote({ kind: "err", text: data.error ?? "Couldn't delete chats." });
+        toast({
+          variant: "error",
+          title: "Couldn't delete chats",
+          description: data.error ?? "Please try again.",
+        });
         return;
       }
-      setNote({
-        kind: "ok",
-        text:
+      toast({
+        variant: "success",
+        title:
           data.count > 0
-            ? `Deleted ${data.count} conversation${data.count === 1 ? "" : "s"}.`
-            : "There were no conversations to delete.",
+            ? `Deleted ${data.count} conversation${data.count === 1 ? "" : "s"}`
+            : "Nothing to delete",
       });
       router.refresh();
     } catch {
-      setNote({ kind: "err", text: "Network error. Please try again." });
+      toast({
+        variant: "error",
+        title: "Network error",
+        description: "Please try again.",
+      });
     } finally {
       setBusy(false);
     }
@@ -519,7 +551,6 @@ function DataSection() {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <NoteLine note={note} />
         <ConfirmButton
           label="Delete all chats"
           confirmLabel="Yes, delete everything"
@@ -537,23 +568,30 @@ function DataSection() {
 // Danger zone (delete account)
 // ---------------------------------------------------------------------------
 function DangerSection() {
-  const [note, setNote] = useState<Note>(null);
+  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
   async function deleteAccount() {
-    setNote(null);
     setBusy(true);
     try {
       const res = await fetch("/api/account", { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setNote({ kind: "err", text: data.error ?? "Couldn't delete account." });
+        toast({
+          variant: "error",
+          title: "Couldn't delete account",
+          description: data.error ?? "Please try again.",
+        });
         setBusy(false);
         return;
       }
       await signOut({ callbackUrl: "/auth/signin" });
     } catch {
-      setNote({ kind: "err", text: "Network error. Please try again." });
+      toast({
+        variant: "error",
+        title: "Network error",
+        description: "Please try again.",
+      });
       setBusy(false);
     }
   }
@@ -571,7 +609,6 @@ function DangerSection() {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <NoteLine note={note} />
         <ConfirmButton
           label="Delete account"
           confirmLabel="Permanently delete account"
@@ -588,22 +625,6 @@ function DangerSection() {
 // ---------------------------------------------------------------------------
 // Shared bits
 // ---------------------------------------------------------------------------
-function NoteLine({ note }: { note: Note }) {
-  if (!note) return null;
-  return (
-    <p
-      className={cn(
-        "rounded-lg px-3 py-2 text-sm",
-        note.kind === "ok"
-          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-          : "bg-destructive/10 text-destructive",
-      )}
-    >
-      {note.text}
-    </p>
-  );
-}
-
 function ConfirmButton({
   label,
   confirmLabel,

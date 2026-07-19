@@ -1,8 +1,10 @@
 "use client";
 
-import { PanelLeft, Plus } from "lucide-react";
+import Link from "next/link";
+import { PanelLeft, Settings, SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandBadge } from "@/components/brand/logo";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Props = {
   title: string;
@@ -12,7 +14,8 @@ type Props = {
 
 /**
  * Slim conversation top bar for the main column. Keeps the chrome quiet:
- * a mobile sidebar toggle, the live conversation title, and a new-chat action.
+ * a sidebar toggle and the live conversation title on the left, new-chat and
+ * settings actions on the right.
  */
 export function Header({ title, onToggleSidebar, onNewChat }: Props) {
   return (
@@ -33,6 +36,36 @@ export function Header({ title, onToggleSidebar, onNewChat }: Props) {
         {title}
       </h1>
 
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="New chat"
+            onClick={onNewChat}
+          >
+            <SquarePen className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>New chat</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            aria-label="Settings"
+            className="text-muted-foreground"
+          >
+            <Link href="/settings">
+              <Settings className="h-4 w-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Settings</TooltipContent>
+      </Tooltip>
     </header>
   );
 }

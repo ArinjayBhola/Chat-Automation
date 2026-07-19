@@ -2,19 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
+import { Loader2, Plus, Workflow } from "lucide-react";
 import { useWorkflowStore } from "@/lib/stores/workflow-store";
 import { WorkflowCanvas } from "./canvas";
 import { NodePalette } from "./node-palette";
 import { NodePropertiesPanel } from "./node-properties-panel";
 import { WorkflowSidebar, type WorkflowListItem } from "./sidebar";
 import { WorkflowToolbar } from "./toolbar";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 
 export function WorkflowBuilder({
   initialWorkflowId,
 }: {
   initialWorkflowId?: string;
 }) {
+  const { toast } = useToast();
   const [workflows, setWorkflows] = useState<WorkflowListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -78,14 +82,27 @@ export function WorkflowBuilder({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "Untitled workflow" }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast({
+          variant: "error",
+          title: "Couldn't create workflow",
+          description: "Please try again.",
+        });
+        return;
+      }
       const created = await res.json();
       await refresh();
       select(created.id);
+    } catch {
+      toast({
+        variant: "error",
+        title: "Network error",
+        description: "Please try again.",
+      });
     } finally {
       setCreating(false);
     }
-  }, [refresh, select]);
+  }, [refresh, select, toast]);
 
   const confirmDelete = useCallback(async () => {
     const id = pendingDelete;
@@ -98,10 +115,11 @@ export function WorkflowBuilder({
     }
     try {
       await fetch(`/api/workflows/${id}`, { method: "DELETE" });
+      toast({ title: "Workflow deleted" });
     } finally {
       refresh();
     }
-  }, [pendingDelete, activeId, clear, refresh]);
+  }, [pendingDelete, activeId, clear, refresh, toast]);
 
   const handleRename = useCallback(
     async (id: string, name: string) => {
@@ -184,20 +202,25 @@ function EmptyState({
   creating: boolean;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-      <h2 className="text-lg font-semibold">Build a workflow</h2>
-      <p className="max-w-sm text-sm text-muted-foreground">
-        Create a workflow, then drag nodes onto the canvas and connect them to
-        automate your tools.
-      </p>
-      <button
-        type="button"
-        onClick={onNew}
-        disabled={creating}
-        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border bg-card text-muted-foreground">
+        <Workflow className="h-6 w-6" />
+      </span>
+      <div className="space-y-1.5">
+        <h2 className="text-lg font-semibold">Build a workflow</h2>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Create a workflow, then drag nodes onto the canvas and connect them to
+          automate your tools.
+        </p>
+      </div>
+      <Button onClick={onNew} disabled={creating} className="gap-1.5">
+        {creating ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Plus className="h-4 w-4" />
+        )}
         {creating ? "Creating..." : "New workflow"}
-      </button>
+      </Button>
     </div>
   );
 }

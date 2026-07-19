@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { TOOL_META, type ToolId, type ToolStatus } from "@/lib/types";
 
@@ -38,11 +39,9 @@ export function ToolConnections() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const { toast } = useToast();
   const [tools, setTools] = useState<ToolStatus[] | null>(null);
   const [busy, setBusy] = useState<ToolId | null>(null);
-  const [note, setNote] = useState<{ kind: "ok" | "err"; text: string } | null>(
-    null,
-  );
 
   const loadStatus = useCallback(async () => {
     try {
@@ -65,22 +64,23 @@ export function ToolConnections() {
     if (!connected && !toolError) return;
 
     if (connected) {
-      setNote({
-        kind: "ok",
-        text: `${TOOL_META[connected as ToolId]?.name ?? connected} connected.`,
+      toast({
+        variant: "success",
+        title: `${TOOL_META[connected as ToolId]?.name ?? connected} connected`,
+        description: "Relay can now act on this tool for you.",
       });
       loadStatus();
     } else if (toolError) {
-      setNote({
-        kind: "err",
-        text: ERROR_LABELS[toolError] ?? `Connection failed (${toolError}).`,
+      toast({
+        variant: "error",
+        title: "Connection failed",
+        description: ERROR_LABELS[toolError] ?? `Something went wrong (${toolError}).`,
       });
     }
     router.replace("/chat");
-  }, [searchParams, router, loadStatus]);
+  }, [searchParams, router, loadStatus, toast]);
 
   async function handleConnect(tool: ToolId) {
-    setNote(null);
     setBusy(tool);
     try {
       const r = await fetch(`/api/tools/${tool}/connect`, { method: "POST" });
@@ -89,9 +89,17 @@ export function ToolConnections() {
         window.location.href = d.url; // hand off to provider consent screen
         return;
       }
-      setNote({ kind: "err", text: d.error ?? "Couldn't start connection." });
+      toast({
+        variant: "error",
+        title: "Couldn't start connection",
+        description: d.error ?? `Try connecting ${TOOL_META[tool].name} again.`,
+      });
     } catch {
-      setNote({ kind: "err", text: "Network error starting connection." });
+      toast({
+        variant: "error",
+        title: "Network error",
+        description: "Check your connection and try again.",
+      });
     } finally {
       setBusy(null);
     }
@@ -101,7 +109,7 @@ export function ToolConnections() {
     setBusy(tool);
     try {
       await fetch(`/api/tools/${tool}/disconnect`, { method: "POST" });
-      setNote({ kind: "ok", text: `${TOOL_META[tool].name} disconnected.` });
+      toast({ title: `${TOOL_META[tool].name} disconnected` });
       await loadStatus();
     } finally {
       setBusy(null);
@@ -184,19 +192,6 @@ export function ToolConnections() {
             );
           })}
         </ul>
-      )}
-
-      {note && (
-        <p
-          className={cn(
-            "mt-2 rounded-lg px-2.5 py-2 text-xs",
-            note.kind === "ok"
-              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-              : "bg-destructive/10 text-destructive",
-          )}
-        >
-          {note.text}
-        </p>
       )}
     </div>
   );
