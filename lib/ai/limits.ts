@@ -1,4 +1,5 @@
 import { allModels, PROVIDER_LABEL, type ProviderId } from "./models";
+import { modelCostUsd, modelCostLimit, providerCostLimit } from "./pricing";
 
 /**
  * Per-model usage limits (monthly token budgets) and the shared usage shape.
@@ -71,12 +72,24 @@ export type ModelUsage = {
   provider: ProviderId;
   inputTokens: number;
   outputTokens: number;
+  /** Subset of inputTokens served from the provider prompt cache. */
+  cachedInputTokens: number;
+  /** Subset of outputTokens spent on reasoning. */
+  reasoningTokens: number;
   totalTokens: number;
   requests: number;
+  /** Token budget. */
   limit: number;
   remaining: number;
-  /** 0-100, clamped. */
+  /** 0-100, clamped (token budget). */
   percentUsed: number;
+  /** Exact USD spent on this model this window. */
+  costUsd: number;
+  /** USD spend budget. */
+  costLimit: number;
+  costRemaining: number;
+  /** 0-100, clamped (dollar budget). */
+  costPercentUsed: number;
 };
 
 /** Build a ModelUsage row from raw counters (pure; used server + client). */
@@ -86,24 +99,45 @@ export function toModelUsage(input: {
   provider: ProviderId;
   inputTokens: number;
   outputTokens: number;
+  cachedInputTokens?: number;
+  reasoningTokens?: number;
   requests: number;
 }): ModelUsage {
+  const cachedInputTokens = input.cachedInputTokens ?? 0;
+  const reasoningTokens = input.reasoningTokens ?? 0;
   const totalTokens = input.inputTokens + input.outputTokens;
   const limit = modelLimit(input.modelId);
   const remaining = Math.max(limit - totalTokens, 0);
   const percentUsed =
     limit > 0 ? Math.min(100, Math.round((totalTokens / limit) * 100)) : 0;
+
+  const costUsd = modelCostUsd(input.modelId, {
+    inputTokens: input.inputTokens,
+    outputTokens: input.outputTokens,
+    cachedInputTokens,
+  });
+  const costLimit = modelCostLimit(input.modelId);
+  const costRemaining = Math.max(costLimit - costUsd, 0);
+  const costPercentUsed =
+    costLimit > 0 ? Math.min(100, Math.round((costUsd / costLimit) * 100)) : 0;
+
   return {
     modelId: input.modelId,
     label: input.label,
     provider: input.provider,
     inputTokens: input.inputTokens,
     outputTokens: input.outputTokens,
+    cachedInputTokens,
+    reasoningTokens,
     totalTokens,
     requests: input.requests,
     limit,
     remaining,
     percentUsed,
+    costUsd,
+    costLimit,
+    costRemaining,
+    costPercentUsed,
   };
 }
 
@@ -154,11 +188,17 @@ export type ProviderUsage = {
   label: string;
   inputTokens: number;
   outputTokens: number;
+  cachedInputTokens: number;
+  reasoningTokens: number;
   totalTokens: number;
   requests: number;
   limit: number;
   remaining: number;
   percentUsed: number;
+  costUsd: number;
+  costLimit: number;
+  costRemaining: number;
+  costPercentUsed: number;
   models: ModelUsage[];
 };
 
@@ -169,22 +209,38 @@ export function toProviderUsage(
 ): ProviderUsage {
   const inputTokens = models.reduce((s, m) => s + m.inputTokens, 0);
   const outputTokens = models.reduce((s, m) => s + m.outputTokens, 0);
+  const cachedInputTokens = models.reduce((s, m) => s + m.cachedInputTokens, 0);
+  const reasoningTokens = models.reduce((s, m) => s + m.reasoningTokens, 0);
   const requests = models.reduce((s, m) => s + m.requests, 0);
   const totalTokens = inputTokens + outputTokens;
   const limit = providerLimit(provider);
   const remaining = Math.max(limit - totalTokens, 0);
   const percentUsed =
     limit > 0 ? Math.min(100, Math.round((totalTokens / limit) * 100)) : 0;
+
+  // Sum exact per-model cost (each model prices its own tokens).
+  const costUsd = models.reduce((s, m) => s + m.costUsd, 0);
+  const costLimit = providerCostLimit(provider);
+  const costRemaining = Math.max(costLimit - costUsd, 0);
+  const costPercentUsed =
+    costLimit > 0 ? Math.min(100, Math.round((costUsd / costLimit) * 100)) : 0;
+
   return {
     provider,
     label: PROVIDER_LABEL[provider] ?? provider,
     inputTokens,
     outputTokens,
+    cachedInputTokens,
+    reasoningTokens,
     totalTokens,
     requests,
     limit,
     remaining,
     percentUsed,
+    costUsd,
+    costLimit,
+    costRemaining,
+    costPercentUsed,
     models,
   };
 }

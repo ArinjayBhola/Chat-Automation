@@ -342,6 +342,14 @@ export const modelUsage = pgTable(
     outputTokens: bigint("output_tokens", { mode: "number" })
       .notNull()
       .default(0),
+    // Subset of inputTokens served from the provider prompt cache (cheaper).
+    cachedInputTokens: bigint("cached_input_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    // Subset of outputTokens spent on reasoning (billed as output).
+    reasoningTokens: bigint("reasoning_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
     totalTokens: bigint("total_tokens", { mode: "number" }).notNull().default(0),
     requestCount: integer("request_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })

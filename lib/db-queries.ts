@@ -612,6 +612,8 @@ export type UsageDelta = {
   provider: string;
   inputTokens: number;
   outputTokens: number;
+  cachedInputTokens?: number;
+  reasoningTokens?: number;
   requests: number;
 };
 
@@ -621,6 +623,8 @@ export type UsageRow = {
   provider: string;
   inputTokens: number;
   outputTokens: number;
+  cachedInputTokens: number;
+  reasoningTokens: number;
   totalTokens: number;
   requestCount: number;
 };
@@ -678,11 +682,15 @@ export async function incrementModelUsage(
           provider: d.provider,
           inputTokens: 0,
           outputTokens: 0,
+          cachedInputTokens: 0,
+          reasoningTokens: 0,
           totalTokens: 0,
           requestCount: 0,
         } satisfies UsageRow);
       prev.inputTokens += d.inputTokens;
       prev.outputTokens += d.outputTokens;
+      prev.cachedInputTokens += d.cachedInputTokens ?? 0;
+      prev.reasoningTokens += d.reasoningTokens ?? 0;
       prev.totalTokens += d.inputTokens + d.outputTokens;
       prev.requestCount += d.requests;
       bucket.set(d.modelId, prev);
@@ -693,6 +701,8 @@ export async function incrementModelUsage(
   for (const d of deltas) {
     if (d.inputTokens <= 0 && d.outputTokens <= 0 && d.requests <= 0) continue;
     const total = d.inputTokens + d.outputTokens;
+    const cached = d.cachedInputTokens ?? 0;
+    const reasoning = d.reasoningTokens ?? 0;
     await db
       .insert(modelUsage)
       .values({
@@ -702,6 +712,8 @@ export async function incrementModelUsage(
         windowStart,
         inputTokens: d.inputTokens,
         outputTokens: d.outputTokens,
+        cachedInputTokens: cached,
+        reasoningTokens: reasoning,
         totalTokens: total,
         requestCount: d.requests,
       })
@@ -714,6 +726,8 @@ export async function incrementModelUsage(
         set: {
           inputTokens: sql`${modelUsage.inputTokens} + ${d.inputTokens}`,
           outputTokens: sql`${modelUsage.outputTokens} + ${d.outputTokens}`,
+          cachedInputTokens: sql`${modelUsage.cachedInputTokens} + ${cached}`,
+          reasoningTokens: sql`${modelUsage.reasoningTokens} + ${reasoning}`,
           totalTokens: sql`${modelUsage.totalTokens} + ${total}`,
           requestCount: sql`${modelUsage.requestCount} + ${d.requests}`,
           updatedAt: new Date(),
@@ -748,6 +762,8 @@ export async function getModelUsage(userId: string): Promise<UsageRow[]> {
     provider: r.provider,
     inputTokens: r.inputTokens,
     outputTokens: r.outputTokens,
+    cachedInputTokens: r.cachedInputTokens,
+    reasoningTokens: r.reasoningTokens,
     totalTokens: r.totalTokens,
     requestCount: r.requestCount,
   }));

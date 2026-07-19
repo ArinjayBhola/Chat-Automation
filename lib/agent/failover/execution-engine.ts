@@ -25,6 +25,8 @@ export type StepFinish = {
   messages: ModelMessage[];
   inputTokens: number;
   outputTokens: number;
+  cachedInputTokens?: number;
+  reasoningTokens?: number;
 };
 
 export type StreamAttempt = {
@@ -56,14 +58,28 @@ const defaultStreamFn: StreamFn = (o) => {
     tools: o.tools,
     stopWhen: stepCountIs(o.maxSteps),
     onStepFinish: (step) => {
+      // v7 usage field names are read defensively - cached/reasoning live in
+      // different places across providers and are not on the base type.
+      const usage = (step.usage ?? {}) as {
+        inputTokens?: number;
+        outputTokens?: number;
+        cachedInputTokens?: number;
+        reasoningTokens?: number;
+        inputTokenDetails?: { cacheReadTokens?: number };
+        outputTokenDetails?: { reasoningTokens?: number };
+      };
       o.onStepFinish({
         provider: o.provider,
         modelId: o.modelId,
         text: step.text ?? "",
         toolNames: (step.toolCalls ?? []).map((c) => c.toolName),
         messages: (step.response?.messages ?? []) as ModelMessage[],
-        inputTokens: step.usage?.inputTokens ?? 0,
-        outputTokens: step.usage?.outputTokens ?? 0,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cachedInputTokens:
+          usage.cachedInputTokens ?? usage.inputTokenDetails?.cacheReadTokens ?? 0,
+        reasoningTokens:
+          usage.reasoningTokens ?? usage.outputTokenDetails?.reasoningTokens ?? 0,
       });
     },
   });

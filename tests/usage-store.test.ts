@@ -53,4 +53,39 @@ describe("model usage in-memory fallback (no DB)", () => {
     // A different user sees nothing from the above.
     expect(await getModelUsage(randomUUID())).toEqual([]);
   });
+
+  it("accumulates cached-input and reasoning token subsets exactly", async () => {
+    const userId = randomUUID();
+    await incrementModelUsage(userId, [
+      {
+        modelId: "claude-opus-4-8",
+        provider: "anthropic",
+        inputTokens: 1000,
+        outputTokens: 400,
+        cachedInputTokens: 600,
+        reasoningTokens: 100,
+        requests: 1,
+      },
+    ]);
+    await incrementModelUsage(userId, [
+      {
+        modelId: "claude-opus-4-8",
+        provider: "anthropic",
+        inputTokens: 500,
+        outputTokens: 200,
+        cachedInputTokens: 400,
+        reasoningTokens: 50,
+        requests: 1,
+      },
+    ]);
+    const [row] = await getModelUsage(userId);
+    expect(row).toMatchObject({
+      inputTokens: 1500,
+      outputTokens: 600,
+      cachedInputTokens: 1000,
+      reasoningTokens: 150,
+      totalTokens: 2100,
+      requestCount: 2,
+    });
+  });
 });

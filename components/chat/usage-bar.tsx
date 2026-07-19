@@ -9,6 +9,17 @@ export function formatTokens(n: number): string {
   return String(n);
 }
 
+/**
+ * Exact USD formatter for spend. Small amounts keep enough precision to be
+ * meaningful (a sub-cent run shows as "$0.0012"); larger amounts use 2 dp.
+ */
+export function formatUsd(n: number): string {
+  if (n === 0) return "$0.00";
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  if (n < 1) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(2)}`;
+}
+
 /** Solid bar color by fill level (no gradients per project UI rules). */
 function barColor(pct: number): string {
   if (pct >= 90) return "bg-destructive";

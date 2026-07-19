@@ -56,6 +56,8 @@ export class ExecutionState {
       provider: ProviderId;
       inputTokens: number;
       outputTokens: number;
+      cachedInputTokens: number;
+      reasoningTokens: number;
       requests: number;
     }
   >();
@@ -99,7 +101,14 @@ export class ExecutionState {
   private modelEntry(modelId: string, provider: ProviderId) {
     let entry = this.usageByModel.get(modelId);
     if (!entry) {
-      entry = { provider, inputTokens: 0, outputTokens: 0, requests: 0 };
+      entry = {
+        provider,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedInputTokens: 0,
+        reasoningTokens: 0,
+        requests: 0,
+      };
       this.usageByModel.set(modelId, entry);
     }
     return entry;
@@ -111,6 +120,8 @@ export class ExecutionState {
     provider: ProviderId;
     inputTokens: number;
     outputTokens: number;
+    cachedInputTokens: number;
+    reasoningTokens: number;
     requests: number;
   }> {
     return [...this.usageByModel.entries()].map(([modelId, u]) => ({
@@ -118,6 +129,8 @@ export class ExecutionState {
       provider: u.provider,
       inputTokens: u.inputTokens,
       outputTokens: u.outputTokens,
+      cachedInputTokens: u.cachedInputTokens,
+      reasoningTokens: u.reasoningTokens,
       requests: u.requests,
     }));
   }
@@ -135,6 +148,8 @@ export class ExecutionState {
     messages: ModelMessage[];
     inputTokens: number;
     outputTokens: number;
+    cachedInputTokens?: number;
+    reasoningTokens?: number;
   }): void {
     this.stepMessages.push(...step.messages);
     if (step.text) this.committedText += step.text;
@@ -146,20 +161,39 @@ export class ExecutionState {
       toolNames: step.toolNames,
       finishedAt: new Date().toISOString(),
     });
-    this.addUsage(step.modelId, step.inputTokens, step.outputTokens);
+    this.addUsage(
+      step.modelId,
+      step.inputTokens,
+      step.outputTokens,
+      step.cachedInputTokens ?? 0,
+      step.reasoningTokens ?? 0,
+    );
   }
 
-  private addUsage(modelId: string, inputTokens: number, outputTokens: number) {
+  private addUsage(
+    modelId: string,
+    inputTokens: number,
+    outputTokens: number,
+    cachedInputTokens = 0,
+    reasoningTokens = 0,
+  ) {
     this.tokenUsage.inputTokens += inputTokens || 0;
     this.tokenUsage.outputTokens += outputTokens || 0;
     this.tokenUsage.totalTokens =
       this.tokenUsage.inputTokens + this.tokenUsage.outputTokens;
-    this.costUsd += estimateStepCost(modelId, inputTokens || 0, outputTokens || 0);
+    this.costUsd += estimateStepCost(
+      modelId,
+      inputTokens || 0,
+      outputTokens || 0,
+      cachedInputTokens || 0,
+    );
 
     const entry = this.usageByModel.get(modelId);
     if (entry) {
       entry.inputTokens += inputTokens || 0;
       entry.outputTokens += outputTokens || 0;
+      entry.cachedInputTokens += cachedInputTokens || 0;
+      entry.reasoningTokens += reasoningTokens || 0;
     }
   }
 

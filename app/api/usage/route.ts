@@ -46,6 +46,8 @@ export async function GET() {
         provider: m.provider,
         inputTokens: u?.inputTokens ?? 0,
         outputTokens: u?.outputTokens ?? 0,
+        cachedInputTokens: u?.cachedInputTokens ?? 0,
+        reasoningTokens: u?.reasoningTokens ?? 0,
         requests: u?.requestCount ?? 0,
       });
     });
