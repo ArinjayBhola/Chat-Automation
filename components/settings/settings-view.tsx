@@ -27,10 +27,10 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { ToolConnections } from "@/components/chat/tool-connections";
 import { UsageSection } from "@/components/settings/usage-section";
-import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/components/ui/toast";
 import { timeAgo } from "@/lib/utils";
+import { AppTopbar } from "@/components/layout/app-topbar";
 
 type Initial = {
   name: string;
@@ -57,7 +57,7 @@ export function SettingsView({ initial }: { initial: Initial }) {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card/80 px-3 backdrop-blur sm:px-4">
+      <AppTopbar>
         <Button
           asChild
           variant="ghost"
@@ -69,10 +69,6 @@ export function SettingsView({ initial }: { initial: Initial }) {
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <Logo badgeClassName="h-7 w-7" />
-        <h1 className="flex-1 text-sm font-medium text-muted-foreground">
-          Settings
-        </h1>
         <ThemeToggle />
         <Button
           variant="ghost"
@@ -83,7 +79,7 @@ export function SettingsView({ initial }: { initial: Initial }) {
           <LogOut className="h-4 w-4" />
           <span className="hidden sm:inline">Sign out</span>
         </Button>
-      </header>
+      </AppTopbar>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">

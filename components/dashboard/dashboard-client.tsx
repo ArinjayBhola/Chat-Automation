@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { MessageSquare, RefreshCw, Workflow } from "lucide-react";
-import { Logo } from "@/components/brand/logo";
+import { RefreshCw } from "lucide-react";
+import { AppTopbar } from "@/components/layout/app-topbar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -64,26 +63,7 @@ export function DashboardClient() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-card/80 px-4 backdrop-blur md:px-6">
-        <div className="flex items-center gap-3">
-          <Logo badgeClassName="h-7 w-7" />
-          <span className="hidden text-sm font-semibold sm:inline">
-            Dashboard
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button asChild variant="ghost" size="sm" className="gap-1.5">
-            <Link href="/workflows">
-              <Workflow className="h-4 w-4" />
-              <span className="hidden sm:inline">Workflows</span>
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" size="sm" className="gap-1.5">
-            <Link href="/chat">
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">Chat</span>
-            </Link>
-          </Button>
+      <AppTopbar>
           <Button
             variant="outline"
             size="sm"
@@ -97,8 +77,7 @@ export function DashboardClient() {
             <span className="hidden sm:inline">Refresh</span>
           </Button>
           <ThemeToggle />
-        </div>
-      </header>
+      </AppTopbar>
 
       <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
         <div>
