@@ -49,6 +49,64 @@
     --ring: 243 80% 70%;
   }
 
+  /* User-selectable appearance presets. The dark rules intentionally keep
+     the same neutral surfaces while changing the accent and interactive tone. */
+  :root[data-palette="github"] {
+    --primary: 212 92% 45%;
+    --ring: 212 92% 45%;
+    --accent: 212 35% 92%;
+    --accent-foreground: 212 30% 18%;
+  }
+
+  .dark[data-palette="github"] {
+    --primary: 212 92% 58%;
+    --ring: 212 92% 58%;
+    --accent: 212 22% 18%;
+    --accent-foreground: 212 20% 96%;
+  }
+
+  :root[data-palette="forest"] {
+    --primary: 158 64% 38%;
+    --ring: 158 64% 38%;
+    --accent: 158 28% 91%;
+    --accent-foreground: 158 30% 16%;
+  }
+
+  .dark[data-palette="forest"] {
+    --primary: 158 62% 52%;
+    --ring: 158 62% 52%;
+    --accent: 158 20% 18%;
+    --accent-foreground: 158 20% 96%;
+  }
+
+  :root[data-palette="rose"] {
+    --primary: 346 70% 51%;
+    --ring: 346 70% 51%;
+    --accent: 346 30% 93%;
+    --accent-foreground: 346 30% 18%;
+  }
+
+  .dark[data-palette="rose"] {
+    --primary: 346 75% 65%;
+    --ring: 346 75% 65%;
+    --accent: 346 22% 19%;
+    --accent-foreground: 346 20% 96%;
+  }
+
+  html[data-font-size="small"] { font-size: 15px; }
+  html[data-font-size="large"] { font-size: 17px; }
+  html[data-radius="sharp"] { --radius: 0.35rem; }
+  html[data-radius="soft"] { --radius: 1rem; }
+
+  html[data-reduced-motion="true"] *,
+  html[data-reduced-motion="true"] *::before,
+  html[data-reduced-motion="true"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
   * {
     border-color: hsl(var(--border));
   }

@@ -31,6 +31,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/components/ui/toast";
 import { timeAgo } from "@/lib/utils";
 import { AppTopbar } from "@/components/layout/app-topbar";
+import { AppearanceSection } from "@/components/settings/appearance-section";
 
 type Initial = {
   name: string;
@@ -91,6 +92,8 @@ export function SettingsView({ initial }: { initial: Initial }) {
               Manage your profile, security, connected tools, and data.
             </p>
           </div>
+
+          <AppearanceSection />
 
           <ProfileSection
             initial={initial}
