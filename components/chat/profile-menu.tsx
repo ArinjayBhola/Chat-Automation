@@ -119,12 +119,6 @@ export function ProfileMenu({
             Workflows
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings">
-            <Settings />
-            Settings
-          </Link>
-        </DropdownMenuItem>
 
         <DropdownMenuSeparator />
         <DropdownMenuItem
