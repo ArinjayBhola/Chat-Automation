@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Moon, Monitor, Palette, Sun, Zap } from "lucide-react";
+import { Check, Moon, Monitor, Palette as PaletteIcon, Sun, Zap } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import {
+  applyStoredAppearance,
+  type FontSize,
+  type Palette,
+  type Radius,
+} from "./appearance-runtime";
 
-type Palette = "relay" | "cool-blue" | "forest" | "rose" | "ocean" | "slate";
-type FontSize = "small" | "default" | "large";
-type Radius = "sharp" | "default" | "soft";
 
 const PALETTES: { id: Palette; label: string; description: string; color: string }[] = [
   { id: "relay", label: "Relay", description: "Warm neutral with indigo", color: "bg-indigo-500" },
@@ -34,23 +37,11 @@ export function AppearanceSection() {
 
   useEffect(() => {
     setMounted(true);
-    const root = document.documentElement;
-    const rawPalette = localStorage.getItem("relay:palette");
-    const savedPalette = (rawPalette === "github" || rawPalette === "midnight" ? (rawPalette === "github" ? "cool-blue" : "relay") : rawPalette) as Palette | null;
-    const savedFontSize = localStorage.getItem("relay:font-size") as FontSize | null;
-    const savedRadius = localStorage.getItem("relay:radius") as Radius | null;
-    const savedMotion =
-      (localStorage.getItem("relay:reducedMotion") ??
-        localStorage.getItem("relay:reduced-motion")) === "true";
-    if (savedPalette && PALETTES.some((p) => p.id === savedPalette)) setPalette(savedPalette);
-    if (savedFontSize && ["small", "default", "large"].includes(savedFontSize)) setFontSize(savedFontSize);
-    if (savedRadius && ["sharp", "default", "soft"].includes(savedRadius)) setRadius(savedRadius);
-    setReducedMotion(savedMotion);
-    if (savedPalette) root.dataset.palette = savedPalette;
-    if (rawPalette === "github" || rawPalette === "midnight") localStorage.setItem("relay:palette", savedPalette ?? "relay");
-    if (savedFontSize) root.dataset.fontSize = savedFontSize;
-    if (savedRadius) root.dataset.radius = savedRadius;
-    if (savedMotion) root.dataset.reducedMotion = "true";
+    const saved = applyStoredAppearance();
+    setPalette(saved.palette);
+    setFontSize(saved.fontSize);
+    setRadius(saved.radius);
+    setReducedMotion(saved.reducedMotion);
   }, []);
 
   function choosePalette(value: Palette) {
@@ -84,7 +75,7 @@ export function AppearanceSection() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Palette className="h-4 w-4 text-muted-foreground" />
+          <PaletteIcon className="h-4 w-4 text-muted-foreground" />
           Appearance
         </CardTitle>
         <p className="text-sm text-muted-foreground">

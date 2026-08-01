@@ -2,12 +2,17 @@
 
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "next-themes";
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { ToastProvider } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RouteProgress } from "@/components/layout/route-progress";
+import { applyStoredAppearance } from "@/components/settings/appearance-runtime";
 
 export function Providers({ children }: { children: ReactNode }) {
+  useLayoutEffect(() => {
+    applyStoredAppearance();
+  }, []);
+
   return (
     <SessionProvider>
       <ThemeProvider
