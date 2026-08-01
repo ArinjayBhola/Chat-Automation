@@ -39,7 +39,9 @@ export function AppearanceSection() {
     const savedPalette = (rawPalette === "github" || rawPalette === "midnight" ? (rawPalette === "github" ? "cool-blue" : "relay") : rawPalette) as Palette | null;
     const savedFontSize = localStorage.getItem("relay:font-size") as FontSize | null;
     const savedRadius = localStorage.getItem("relay:radius") as Radius | null;
-    const savedMotion = localStorage.getItem("relay:reduced-motion") === "true";
+    const savedMotion =
+      (localStorage.getItem("relay:reducedMotion") ??
+        localStorage.getItem("relay:reduced-motion")) === "true";
     if (savedPalette && PALETTES.some((p) => p.id === savedPalette)) setPalette(savedPalette);
     if (savedFontSize && ["small", "default", "large"].includes(savedFontSize)) setFontSize(savedFontSize);
     if (savedRadius && ["sharp", "default", "soft"].includes(savedRadius)) setRadius(savedRadius);
@@ -174,7 +176,7 @@ export function AppearanceSection() {
 
         <button type="button" aria-pressed={reducedMotion} onClick={() => chooseMotion(!reducedMotion)} className="flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground"><Zap className="h-4 w-4" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-medium">Reduce motion</span><span className="block text-xs text-muted-foreground">Use minimal transitions and animations.</span></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-medium">Reduced motion</span><span className="block text-xs text-muted-foreground">Minimize animations and transitions across Relay.</span></span>
           <span className={cn("flex h-5 w-9 items-center rounded-full p-0.5 transition-colors", reducedMotion ? "bg-primary" : "bg-muted-foreground/30")}><span className={cn("h-4 w-4 rounded-full bg-background transition-transform", reducedMotion && "translate-x-4")} /></span>
         </button>
       </CardContent>
