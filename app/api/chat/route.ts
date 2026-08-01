@@ -140,14 +140,13 @@ export async function POST(req: Request) {
 
         await runReal(send, acc, engine.run());
 
-        // Record accurate per-model token usage for the tracker (best-effort,
-        // never blocks the response; requires a DB).
-        if (isDbEnabled) {
-          try {
-            await incrementModelUsage(userId, state.modelUsageDeltas);
-          } catch (e) {
-            console.error("[chat] usage tracking failed:", e);
-          }
+        // Record usage in either the durable DB store or the documented
+        // in-memory fallback. The latter is important for local/demo users;
+        // skipping this call would make Settings report zero after every run.
+        try {
+          await incrementModelUsage(userId, state.modelUsageDeltas);
+        } catch (e) {
+          console.error("[chat] usage tracking failed:", e);
         }
 
         if (persist) {
@@ -232,7 +231,13 @@ async function persistTurn(
         userId: input.userId,
         actionType: p.approval.actionType as ActionType,
         toolName: p.approval.toolName,
-        actionData: { ...args, [OP_KEY]: p.op ?? null },
+        // Keep the field schema as well as values so approvals remain fully
+        // editable after a reload (notably Notion's parent-page selector).
+        actionData: {
+          ...args,
+          [OP_KEY]: p.op ?? null,
+          __fields: p.approval.fields,
+        },
         status: "pending",
       });
       await insertAuditLog({

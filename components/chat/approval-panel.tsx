@@ -142,7 +142,7 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
   const urgent = remaining !== null && remaining <= 10;
 
   return (
-    <div className="mt-3 animate-fade-in overflow-hidden rounded-xl border border-amber-500/40 bg-card shadow-sm">
+    <div className="mt-3 animate-fade-in overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       {/* Countdown progress rail. */}
       {remaining !== null && total ? (
         <div className="h-0.5 w-full bg-muted">
@@ -157,7 +157,7 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
       ) : null}
 
       {/* Header. */}
-      <div className="flex items-start gap-3 border-b border-border/60 bg-muted/30 px-4 py-3">
+      <div className="flex items-start gap-3 border-b border-border/60 bg-muted/20 px-4 py-3.5">
         <div
           className={cn(
             "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
@@ -167,10 +167,10 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
           <Icon className="h-[18px] w-[18px]" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-            Approval needed
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Permission request
           </p>
-          <p className="text-sm font-semibold leading-tight">{accent.verb}</p>
+          <p className="mt-0.5 text-sm font-semibold leading-tight">Relay wants to {accent.verb.toLowerCase()}</p>
           <p className="truncate text-xs text-muted-foreground">
             {approval.description}
           </p>
@@ -191,6 +191,10 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
 
       {/* Fields. */}
       <div className="space-y-3 px-4 py-3">
+        <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <ShieldAlert className="h-3.5 w-3.5" />
+          Review the details before allowing this action.
+        </div>
         {fields.map((f) => {
           const display =
             f.options?.find((o) => o.value === f.value)?.label ?? f.value;
@@ -281,7 +285,7 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
           onClick={() => onApprove(fields)}
         >
           <Check className="h-3.5 w-3.5" />
-          {editing ? "Save & approve" : "Approve"}
+          {editing ? "Save & allow" : "Allow"}
           <kbd className="ml-1 hidden items-center gap-0.5 rounded border border-primary-foreground/30 px-1 text-[10px] opacity-70 sm:inline-flex">
             <CornerDownLeft className="h-2.5 w-2.5" />
           </kbd>
@@ -294,12 +298,12 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
           {editing ? (
             <>
               <X className="h-3.5 w-3.5" />
-              Cancel edit
+              Close editor
             </>
           ) : (
             <>
               <Pencil className="h-3.5 w-3.5" />
-              Edit
+              Edit details
             </>
           )}
         </Button>
@@ -309,8 +313,8 @@ export function ApprovalPanel({ approval, onApprove, onSkip }: Props) {
           className="ml-auto text-muted-foreground"
           onClick={onSkip}
         >
-          <SkipForward className="h-3.5 w-3.5" />
-          Skip
+          <X className="h-3.5 w-3.5" />
+          Deny
         </Button>
       </div>
     </div>

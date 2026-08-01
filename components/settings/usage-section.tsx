@@ -31,7 +31,7 @@ export function UsageSection() {
             Usage &amp; billing
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Exact spend, token counts, and model pricing for this month.
+            Token counts and estimated cost at configured list rates for this month.
           </p>
         </CardHeader>
         <CardContent>
@@ -96,9 +96,10 @@ function UsageDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   const monthLabel = windowStart
     ? new Date(windowStart).toLocaleDateString(undefined, {
-        month: "long",
-        year: "numeric",
-      })
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    })
     : null;
 
   return createPortal(
@@ -121,8 +122,8 @@ function UsageDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
               Usage &amp; pricing
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {monthLabel ? `${monthLabel} · ` : ""}Exact spend and tokens
-              against each provider&apos;s monthly budget. Resets each month.
+              {monthLabel ? `${monthLabel} · ` : ""}Estimated cost at configured
+              list rates and Relay&apos;s monthly budgets. Resets each month.
             </p>
           </div>
           <Button
@@ -158,7 +159,7 @@ function UsageDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           ) : (
             providers.map((p) => (
               <div key={p.provider} className="rounded-xl border p-4">
-                {/* Provider header: exact spend against the dollar budget */}
+                {/* Provider header: estimated cost against Relay's budget */}
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{p.label}</p>

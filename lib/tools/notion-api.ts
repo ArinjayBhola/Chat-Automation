@@ -35,6 +35,25 @@ export type NotionPage = {
   url: string;
 };
 
+const MAX_RICH_TEXT = 2000;
+
+function richText(content: string) {
+  const chunks: { text: { content: string } }[] = [];
+  for (let i = 0; i < content.length; i += MAX_RICH_TEXT) {
+    chunks.push({ text: { content: content.slice(i, i + MAX_RICH_TEXT) } });
+  }
+  return chunks;
+}
+
+function paragraphBlocks(content: string) {
+  if (!content) return [];
+  return content.split(/\r?\n/).map((line) => ({
+    object: "block",
+    type: "paragraph",
+    paragraph: { rich_text: richText(line) },
+  }));
+}
+
 function plainTitle(props: Record<string, unknown> | undefined): string {
   if (!props) return "(untitled)";
   for (const value of Object.values(props)) {
@@ -113,17 +132,9 @@ export async function notionCreatePage(
     body: JSON.stringify({
       parent: { page_id: parentId },
       properties: {
-        title: { title: [{ text: { content: title } }] },
+        title: { title: richText(title) },
       },
-      children: content
-        ? [
-            {
-              object: "block",
-              type: "paragraph",
-              paragraph: { rich_text: [{ text: { content } }] },
-            },
-          ]
-        : [],
+      children: paragraphBlocks(content),
     }),
   })) as { id: string; url: string };
   return { id: res.id, url: res.url, title };
@@ -134,17 +145,29 @@ export async function notionUpdatePage(
   pageId: string,
   content: string,
 ): Promise<{ id: string }> {
-  await notionFetch(`/blocks/${pageId}/children`, token, {
-    method: "PATCH",
-    body: JSON.stringify({
-      children: [
-        {
-          object: "block",
-          type: "paragraph",
-          paragraph: { rich_text: [{ text: { content } }] },
-        },
-      ],
-    }),
-  });
+  if (!pageId.trim()) throw new Error("A Notion page id is required.");
+
+  // Notion has no single "replace page body" endpoint. Archive the current
+  // top-level blocks, then append the requested replacement content.
+  const existing = (await notionFetch(
+    `/blocks/${pageId}/children?page_size=100`,
+    token,
+  )) as { results?: { id: string }[] };
+  await Promise.all(
+    (existing.results ?? []).map((block) =>
+      notionFetch(`/blocks/${block.id}`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ archived: true }),
+      }),
+    ),
+  );
+
+  const children = paragraphBlocks(content);
+  if (children.length) {
+    await notionFetch(`/blocks/${pageId}/children`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ children }),
+    });
+  }
   return { id: pageId };
 }

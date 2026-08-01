@@ -36,14 +36,25 @@ function approvalFromRow(row: {
   actionData: Record<string, unknown> | null;
   editedData: Record<string, unknown> | null;
 }): ClientApproval {
-  const data = { ...(row.editedData ?? row.actionData ?? {}) };
+  const actionData = row.actionData ?? {};
+  const editedData = row.editedData ?? {};
+  const storedFields = Array.isArray(actionData.__fields)
+    ? (actionData.__fields as ApprovalField[])
+    : [];
+  const data = { ...actionData, ...editedData };
   delete data[OP_KEY];
-  const fields: ApprovalField[] = Object.entries(data).map(([key, value]) => ({
-    key,
-    label: humanizeKey(key),
-    value: String(value ?? ""),
-    multiline: MULTILINE_KEYS.has(key),
-  }));
+  delete data.__fields;
+  const fields: ApprovalField[] = storedFields.length
+    ? storedFields.map((field) => ({
+        ...field,
+        value: String(data[field.key] ?? field.value ?? ""),
+      }))
+    : Object.entries(data).map(([key, value]) => ({
+        key,
+        label: humanizeKey(key),
+        value: String(value ?? ""),
+        multiline: MULTILINE_KEYS.has(key),
+      }));
   return {
     id: row.id,
     actionType: row.actionType as ActionType,
