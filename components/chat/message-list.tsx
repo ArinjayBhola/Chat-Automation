@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MessageBubble } from "./message-bubble";
+import dynamic from "next/dynamic";
 import { Suggestions } from "./suggestions";
 import { BrandBadge } from "@/components/brand/logo";
 import type { ApprovalField, ClientMessage } from "@/lib/types";
+
+const MessageBubble = dynamic(
+  () => import("./message-bubble").then((m) => m.MessageBubble),
+  { loading: () => <div className="h-16 animate-pulse rounded-lg bg-muted/40" /> },
+);
 
 type Props = {
   messages: ClientMessage[];
@@ -68,12 +73,13 @@ export function MessageList({
     <div className="flex-1 overflow-y-auto scrollbar-thin">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:py-8">
         {messages.map((m) => (
-          <MessageBubble
-            key={m.id}
-            message={m}
-            onApprove={onApprove}
-            onSkip={onSkip}
-          />
+          <div key={m.id} className="content-visibility-auto contain-intrinsic-size-[0_120px]">
+            <MessageBubble
+              message={m}
+              onApprove={onApprove}
+              onSkip={onSkip}
+            />
+          </div>
         ))}
         <div ref={bottomRef} />
       </div>

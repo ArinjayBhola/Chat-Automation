@@ -227,6 +227,16 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
+
+  /* Let the browser skip layout/paint for offscreen chat rows without adding
+     a fragile fixed-height virtualizer to variable-height messages. */
+  .content-visibility-auto {
+    content-visibility: auto;
+  }
+
+  .contain-intrinsic-size-\[0_120px\] {
+    contain-intrinsic-size: 0 120px;
+  }
   .scrollbar-thin::-webkit-scrollbar {
     width: 8px;
   }

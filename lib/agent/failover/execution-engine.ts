@@ -47,6 +47,7 @@ export type StreamFn = (opts: {
   maxSteps: number;
   provider: ProviderId;
   modelId: string;
+  signal?: AbortSignal;
   onStepFinish: (step: StepFinish) => void;
 }) => StreamAttempt;
 
@@ -56,6 +57,7 @@ const defaultStreamFn: StreamFn = (o) => {
     system: o.system,
     messages: o.messages,
     tools: o.tools,
+    abortSignal: o.signal,
     stopWhen: stepCountIs(o.maxSteps),
     onStepFinish: (step) => {
       // v7 usage field names are read defensively - cached/reasoning live in
@@ -98,6 +100,7 @@ export type ExecutionEngineOpts = {
   streamFn?: StreamFn;
   checkpoint?: CheckpointSink;
   maxSteps?: number;
+  signal?: AbortSignal;
 };
 
 /**
@@ -117,6 +120,7 @@ export class ExecutionEngine {
   private readonly streamFn: StreamFn;
   private readonly checkpoint: CheckpointSink;
   private readonly maxSteps: number;
+  private readonly signal?: AbortSignal;
 
   constructor(opts: ExecutionEngineOpts) {
     this.state = opts.state;
@@ -129,6 +133,7 @@ export class ExecutionEngine {
     this.streamFn = opts.streamFn ?? defaultStreamFn;
     this.checkpoint = opts.checkpoint ?? (() => {});
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
+    this.signal = opts.signal;
   }
 
   private persist(): void {
@@ -157,6 +162,7 @@ export class ExecutionEngine {
       null;
 
     while (candidate) {
+      if (this.signal?.aborted) return;
       const remaining = this.maxSteps - this.state.stepCount;
       if (remaining <= 0) {
         this.state.status = "completed";
@@ -215,6 +221,7 @@ export class ExecutionEngine {
         maxSteps: remaining,
         provider: resolved.provider,
         modelId: resolved.modelId,
+        signal: this.signal,
         onStepFinish: (step) => {
           this.state.commitStep(step);
           pendingText = "";

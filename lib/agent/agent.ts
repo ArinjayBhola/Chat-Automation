@@ -48,6 +48,7 @@ export function createAgentRun(opts: {
   modelId: string;
   messages: ModelMessage[];
   chatId?: string;
+  signal?: AbortSignal;
 }): { engine: ExecutionEngine; state: ExecutionState } {
   const connected = [...opts.ctx.connected];
   const tools = buildTools(opts.ctx);
@@ -70,6 +71,7 @@ export function createAgentRun(opts: {
     health,
     checkpoint: (s) => checkpoints.save(s),
     maxSteps: MAX_STEPS,
+    signal: opts.signal,
   });
 
   return { engine, state };

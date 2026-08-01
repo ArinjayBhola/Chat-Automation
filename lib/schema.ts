@@ -155,6 +155,11 @@ export const chats = pgTable(
   },
   (t) => ({
     userIdx: index("chats_user_idx").on(t.userId),
+    userActiveIdx: index("chats_user_archived_updated_idx").on(
+      t.userId,
+      t.archivedAt,
+      t.updatedAt,
+    ),
   }),
 );
 
@@ -199,6 +204,11 @@ export const messages = pgTable(
   },
   (t) => ({
     chatIdx: index("messages_chat_idx").on(t.chatId),
+    chatUserCreatedIdx: index("messages_chat_user_created_idx").on(
+      t.chatId,
+      t.userId,
+      t.createdAt,
+    ),
   }),
 );
 
@@ -232,6 +242,8 @@ export const approvals = pgTable(
   (t) => ({
     chatIdx: index("approvals_chat_idx").on(t.chatId),
     statusIdx: index("approvals_status_idx").on(t.status),
+    userStatusIdx: index("approvals_user_status_idx").on(t.userId, t.status),
+    chatStatusIdx: index("approvals_chat_status_idx").on(t.chatId, t.status),
   }),
 );
 
@@ -255,6 +267,10 @@ export const auditLogs = pgTable(
   },
   (t) => ({
     userIdx: index("audit_logs_user_idx").on(t.userId),
+    userCreatedIdx: index("audit_logs_user_created_idx").on(
+      t.userId,
+      t.createdAt,
+    ),
   }),
 );
 
@@ -366,6 +382,10 @@ export const modelUsage = pgTable(
       t.windowStart,
     ),
     userIdx: index("model_usage_user_idx").on(t.userId),
+    userWindowIdx: index("model_usage_user_window_idx").on(
+      t.userId,
+      t.windowStart,
+    ),
   }),
 );
 

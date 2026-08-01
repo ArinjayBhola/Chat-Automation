@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { uid } from "@/lib/utils";
+import { trimChatHistory } from "@/lib/ai/context";
 import type { AgentEvent } from "@/lib/agent/events";
 import type {
   ApprovalField,
@@ -47,6 +48,7 @@ export function useChat(
   const [modelId, setModelId] = useState(initialModelId);
   const [chatId, setChatIdState] = useState<string | undefined>(undefined);
   const chatIdRef = useRef<string | undefined>(undefined);
+  const abortRef = useRef<AbortController | null>(null);
   const setChatId = useCallback((id: string | undefined) => {
     chatIdRef.current = id;
     setChatIdState(id);
@@ -54,6 +56,8 @@ export function useChat(
   // Mirror messages so send() can read history without being recreated.
   const messagesRef = useRef<ClientMessage[]>([WELCOME]);
   messagesRef.current = messages;
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const patchMessage = useCallback(
     (id: string, fn: (m: ClientMessage) => ClientMessage) => {
@@ -144,10 +148,11 @@ export function useChat(
       const content = text.trim();
       if (!content || isSending) return;
 
-      const history = messagesRef.current
+      const history = trimChatHistory(
+        messagesRef.current
         .filter((m) => m.id !== "welcome" && !m.thinking && m.content)
-        .slice(-20)
-        .map((m) => ({ role: m.role, content: m.content }));
+        .map((m) => ({ role: m.role, content: m.content })),
+      );
 
       const userMsg: ClientMessage = {
         id: uid("msg"),
@@ -170,11 +175,15 @@ export function useChat(
 
       setMessages((prev) => [...prev, userMsg, thinking]);
       setIsSending(true);
+      const controller = new AbortController();
+      abortRef.current?.abort();
+      abortRef.current = controller;
 
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             message: content,
             chatId: chatIdRef.current,
@@ -210,6 +219,7 @@ export function useChat(
           }
         }
       } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         patchMessage(thinkingId, (m) => ({
           ...m,
           thinking: false,
@@ -220,6 +230,7 @@ export function useChat(
             "\n\nPlease try again.",
         }));
       } finally {
+        if (abortRef.current === controller) abortRef.current = null;
         setIsSending(false);
       }
     },
@@ -303,12 +314,14 @@ export function useChat(
   );
 
   const reset = useCallback(() => {
+    abortRef.current?.abort();
     setChatId(undefined);
     setMessages([WELCOME]);
   }, [setChatId]);
 
   const loadChat = useCallback(
     async (id: string) => {
+      abortRef.current?.abort();
       try {
         const res = await fetch(`/api/chat/${id}`);
         if (!res.ok) return;

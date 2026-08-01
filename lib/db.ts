@@ -23,6 +23,9 @@ const globalForDb = globalThis as unknown as {
 const client = isDbEnabled
   ? (globalForDb.__pgClient ??= postgres(process.env.DATABASE_URL!, {
       max: Number(process.env.DB_POOL_MAX ?? 5),
+      idle_timeout: Number(process.env.DB_IDLE_TIMEOUT ?? 20),
+      connect_timeout: Number(process.env.DB_CONNECT_TIMEOUT ?? 10),
+      max_lifetime: Number(process.env.DB_MAX_LIFETIME ?? 1800),
       // Neon/serverless connection strings already include sslmode; postgres-js
       // honors it. `prepare: false` plays nicely with transaction poolers.
       prepare: false,

@@ -21,7 +21,9 @@ import { encodeEvent, type AgentEvent } from "@/lib/agent/events";
 import { OP_KEY, type ApprovalOp } from "@/lib/agent/ops";
 import { limiterKey, rateLimit } from "@/lib/rate-limit";
 import { sanitizeMessage } from "@/lib/sanitize";
+import { trimChatHistory } from "@/lib/ai/context";
 import { uid } from "@/lib/utils";
+import { acquireAgentRun } from "@/lib/concurrency";
 import type { ActionType, ClientApproval, Step, ToolId } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -96,6 +98,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Empty message" }, { status: 400 });
   }
 
+  const releaseRun = acquireAgentRun(session.user.id);
+  if (!releaseRun) {
+    return NextResponse.json(
+      { error: "You already have the maximum number of active runs." },
+      { status: 429, headers: { "Retry-After": "5" } },
+    );
+  }
+
   // Rate limit: 20 messages / minute / user.
   const rl = rateLimit(limiterKey("chat", session.user.id), 20, 60_000);
   if (!rl.ok) {
@@ -110,7 +120,7 @@ export async function POST(req: Request) {
   for (const c of conns) connected.add(c.tool as ToolId);
 
   const messages: ModelMessage[] = [
-    ...(history ?? []).map((h) => ({ role: h.role, content: h.content })),
+    ...trimChatHistory(history ?? []).map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
     { role: "user" as const, content: message },
   ];
 
@@ -136,6 +146,7 @@ export async function POST(req: Request) {
           modelId: modelId ?? "claude-opus-4-8",
           messages,
           chatId,
+          signal: req.signal,
         });
 
         await runReal(send, acc, engine.run());
@@ -164,6 +175,7 @@ export async function POST(req: Request) {
           message: e instanceof Error ? e.message : "Agent error.",
         });
       } finally {
+        releaseRun();
         send({ type: "done" });
         controller.close();
       }

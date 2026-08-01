@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { RefreshCw } from "lucide-react";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -13,14 +14,14 @@ import type {
   TrendPoint,
 } from "@/lib/db-queries";
 import { MetricsCards } from "./metrics-cards";
-import { ExecutionChart } from "./execution-chart";
-import { TrendChart } from "./trend-chart";
-import { NodeUsageChart } from "./node-usage-chart";
-import {
-  RecentExecutions,
-  type RecentExecutionItem,
-} from "./recent-executions";
-import { WorkflowAlerts, type DashboardAlert } from "./workflow-alerts";
+import type { RecentExecutionItem } from "./recent-executions";
+import type { DashboardAlert } from "./workflow-alerts";
+
+const ExecutionChart = dynamic(() => import("./execution-chart").then((m) => m.ExecutionChart));
+const TrendChart = dynamic(() => import("./trend-chart").then((m) => m.TrendChart));
+const NodeUsageChart = dynamic(() => import("./node-usage-chart").then((m) => m.NodeUsageChart));
+const RecentExecutions = dynamic(() => import("./recent-executions").then((m) => m.RecentExecutions));
+const WorkflowAlerts = dynamic(() => import("./workflow-alerts").then((m) => m.WorkflowAlerts));
 
 const REFRESH_MS = 30_000;
 
