@@ -8,6 +8,7 @@ import { MessageInput } from "./message-input";
 import type { ChatListItem } from "./chat-history";
 import { AppShell } from "@/components/layout/app-shell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { startRouteProgress } from "@/components/layout/route-progress";
 import { useChat } from "@/lib/hooks/use-chat";
 import type { ModelChoice } from "@/lib/ai/models";
 
@@ -46,7 +47,10 @@ export function ChatInterface({
     loadChat,
   } = useChat(defaultModelId, {
     // A brand-new chat just got its id: reflect it in the URL without a reload.
-    onChatCreated: (id) => router.replace(`/chat/${id}`),
+      onChatCreated: (id) => {
+        startRouteProgress();
+        router.replace(`/chat/${id}`);
+      },
   });
 
   // Keep the current chat id in a ref so the route-sync effect can read it
@@ -86,13 +90,17 @@ export function ChatInterface({
 
   const handleSelectChat = useCallback(
     (id: string) => {
-      if (id !== activeChatIdRef.current) router.push(`/chat/${id}`);
+      if (id !== activeChatIdRef.current) {
+        startRouteProgress();
+        router.push(`/chat/${id}`);
+      }
     },
     [router],
   );
 
   const handleNewChat = useCallback(() => {
     reset();
+    startRouteProgress();
     router.push("/chat");
   }, [reset, router]);
 

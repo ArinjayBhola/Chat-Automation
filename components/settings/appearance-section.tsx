@@ -6,15 +6,17 @@ import { useTheme } from "next-themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type Palette = "relay" | "github" | "forest" | "rose";
+type Palette = "relay" | "cool-blue" | "forest" | "rose" | "ocean" | "slate";
 type FontSize = "small" | "default" | "large";
 type Radius = "sharp" | "default" | "soft";
 
 const PALETTES: { id: Palette; label: string; description: string; color: string }[] = [
   { id: "relay", label: "Relay", description: "Warm neutral with indigo", color: "bg-indigo-500" },
-  { id: "github", label: "GitHub", description: "Cool blue and crisp surfaces", color: "bg-[#0969da]" },
+  { id: "cool-blue", label: "Cool Blue", description: "Crisp blue workspace", color: "bg-[#0969da]" },
   { id: "forest", label: "Forest", description: "Calm green workspace", color: "bg-emerald-600" },
-  { id: "rose", label: "Rose", description: "Soft red accent", color: "bg-rose-600" },
+  { id: "rose", label: "Coral", description: "Warm energetic accent", color: "bg-rose-600" },
+  { id: "ocean", label: "Ocean", description: "Deep cyan and blue", color: "bg-cyan-600" },
+  { id: "slate", label: "Monochrome", description: "Quiet neutral contrast", color: "bg-slate-600" },
 ];
 
 function setData(name: string, value: string) {
@@ -33,7 +35,8 @@ export function AppearanceSection() {
   useEffect(() => {
     setMounted(true);
     const root = document.documentElement;
-    const savedPalette = localStorage.getItem("relay:palette") as Palette | null;
+    const rawPalette = localStorage.getItem("relay:palette");
+    const savedPalette = (rawPalette === "github" || rawPalette === "midnight" ? (rawPalette === "github" ? "cool-blue" : "relay") : rawPalette) as Palette | null;
     const savedFontSize = localStorage.getItem("relay:font-size") as FontSize | null;
     const savedRadius = localStorage.getItem("relay:radius") as Radius | null;
     const savedMotion = localStorage.getItem("relay:reduced-motion") === "true";
@@ -42,6 +45,7 @@ export function AppearanceSection() {
     if (savedRadius && ["sharp", "default", "soft"].includes(savedRadius)) setRadius(savedRadius);
     setReducedMotion(savedMotion);
     if (savedPalette) root.dataset.palette = savedPalette;
+    if (rawPalette === "github" || rawPalette === "midnight") localStorage.setItem("relay:palette", savedPalette ?? "relay");
     if (savedFontSize) root.dataset.fontSize = savedFontSize;
     if (savedRadius) root.dataset.radius = savedRadius;
     if (savedMotion) root.dataset.reducedMotion = "true";
@@ -71,6 +75,7 @@ export function AppearanceSection() {
     { id: "light", label: "Light", icon: Sun },
     { id: "dark", label: "Dark", icon: Moon },
     { id: "system", label: "System", icon: Monitor },
+    { id: "midnight", label: "Midnight", icon: Moon },
   ] as const;
 
   return (
@@ -90,7 +95,7 @@ export function AppearanceSection() {
             <p className="text-sm font-medium">Theme</p>
             <p className="text-xs text-muted-foreground">Choose a fixed theme or follow your device.</p>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {modes.map(({ id, label, icon: Icon }) => {
               const selected = mounted && theme === id;
               return (
@@ -98,7 +103,13 @@ export function AppearanceSection() {
                   key={id}
                   type="button"
                   aria-pressed={selected}
-                  onClick={() => setTheme(id)}
+                  onClick={() => {
+                    if (id === "midnight") {
+                      setTheme("midnight");
+                    } else {
+                      setTheme(id);
+                    }
+                  }}
                   className={cn(
                     "flex h-10 items-center justify-center gap-1.5 rounded-lg border text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     selected ? "border-primary bg-primary/10 text-primary" : "bg-background hover:bg-accent",
