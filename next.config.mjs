@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Emit a minimal self-contained server for Docker images.
-  output: "standalone",
+  // Vercel packages the server through its build adapter. Standalone output is
+  // for Docker; combining it with the Next 16.3 adapter breaks file tracing.
+  output: process.env.VERCEL ? undefined : "standalone",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
