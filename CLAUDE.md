@@ -45,7 +45,7 @@ Verification is build + tests + typecheck; the dev server has historically not b
 - Budgets: `lib/ai/limits.ts` - `modelLimit()` (per-model) and `providerLimit()` (per-provider), each override-able via env (`MODEL_TOKEN_LIMITS`/`MODEL_TOKEN_LIMIT_DEFAULT`, `PROVIDER_TOKEN_LIMITS`/`PROVIDER_TOKEN_LIMIT_DEFAULT`). `toModelUsage()`/`toProviderUsage()` derive used/remaining/percent. `GET /api/usage` returns usage grouped BY PROVIDER (every model of each configured provider, plus provider totals).
 - UI: usage lives in **Settings** (`components/settings/usage-section.tsx`) - one card per provider showing the provider total against its budget and a per-model breakdown, using the shared `UsageBar`. The composer `ModelPicker` only shows label + description (no usage).
 
-### Approval workflow (human-in-the-loop)
+### Chat approvals (human-in-the-loop)
 - **Read tools execute live** (search/list/read). **Sensitive write tools do NOT execute** — they return `{ status: "approval_required", approval, op, args, note }` (`approvalResult` in `lib/agent/tools.ts`). The agent's system prompt instructs the model to stop and not retry when it sees this.
 - Each sensitive action carries an `ApprovalOp` discriminator (`lib/agent/ops.ts`, e.g. `"gmail.send"`, `"docs.append"`). The op is persisted inside `approvals.actionData` under the key `__op` (`OP_KEY`).
 - When the DB is enabled, `persistTurn` writes the chat, user/assistant messages, approval rows, and an audit log entry, then emits `meta{chatId}`.
@@ -72,3 +72,7 @@ Verification is build + tests + typecheck; the dev server has historically not b
 - Server-only modules use `import "server-only"`. Tests can still import them because `vitest.config.ts` aliases `server-only` → `tests/server-only-stub.ts` (and `@` → repo root).
 - **UI copy rules**: NO gradients anywhere; avoid em dashes in user-facing copy (use hyphens/commas). UI primitives are shadcn-style on Radix in `components/ui/`; the brand mark is in `components/brand/logo.tsx` and the favicon is `app/icon.svg`.
 - Writing literal C0 control bytes via the editor tools gets mangled — use `\uXXXX` escapes / `String.fromCharCode` / `new RegExp(string)` instead.
+
+## Product scope
+
+Relay focuses on on-demand chat and connected tools. The visual workflow builder, automation dashboard, workflow runtime, and scheduler have been removed. Do not add a Vercel Cron dependency. Historical SQL migrations are retained; existing database tables are not dropped as part of the feature removal.

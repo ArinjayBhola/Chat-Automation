@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, MessageSquare, Workflow } from "lucide-react";
+import { MessageSquare, Settings } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/workflows", label: "Workflows", icon: Workflow },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AppTopbar({ children }: { children?: React.ReactNode }) {

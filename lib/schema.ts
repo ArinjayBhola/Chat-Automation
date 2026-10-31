@@ -5,14 +5,12 @@ import {
   text,
   timestamp,
   jsonb,
-  boolean,
   integer,
   bigint,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import type { WorkflowNode, WorkflowEdge } from "./types/workflow";
 import type {
   CompletedStep,
   FailureRecord,
@@ -46,27 +44,6 @@ export const approvalStatusEnum = pgEnum("approval_status", [
   "approved",
   "rejected",
   "skipped",
-]);
-
-// Workflow automation enums --------------------------------------------------
-export const workflowExecutionStatusEnum = pgEnum("workflow_execution_status", [
-  "running",
-  "success",
-  "failed",
-  "paused",
-]);
-
-export const workflowTriggerTypeEnum = pgEnum("workflow_trigger_type", [
-  "manual",
-  "scheduled",
-  "webhook",
-]);
-
-export const executionStepStatusEnum = pgEnum("execution_step_status", [
-  "pending",
-  "running",
-  "success",
-  "failed",
 ]);
 
 // Agent failover / checkpoint-resume ----------------------------------------
@@ -390,166 +367,6 @@ export const modelUsage = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// workflows — user-authored automations (graph of nodes + edges)
-// ---------------------------------------------------------------------------
-export const workflows = pgTable(
-  "workflows",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    description: text("description"),
-    isActive: boolean("is_active").notNull().default(true),
-    isPublished: boolean("is_published").notNull().default(false),
-    version: integer("version").notNull().default(1),
-    nodes: jsonb("nodes").$type<WorkflowNode[]>().notNull().default([]),
-    edges: jsonb("edges").$type<WorkflowEdge[]>().notNull().default([]),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => ({
-    userIdx: index("workflows_user_idx").on(t.userId),
-    activeIdx: index("workflows_active_idx").on(t.isActive),
-    createdIdx: index("workflows_created_idx").on(t.createdAt),
-  }),
-);
-
-// ---------------------------------------------------------------------------
-// workflow_versions — immutable history snapshots of a workflow's graph
-// ---------------------------------------------------------------------------
-export const workflowVersions = pgTable(
-  "workflow_versions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    workflowId: uuid("workflow_id")
-      .notNull()
-      .references(() => workflows.id, { onDelete: "cascade" }),
-    version: integer("version").notNull(),
-    nodes: jsonb("nodes").$type<WorkflowNode[]>().notNull().default([]),
-    edges: jsonb("edges").$type<WorkflowEdge[]>().notNull().default([]),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => ({
-    workflowIdx: index("workflow_versions_workflow_idx").on(t.workflowId),
-  }),
-);
-
-// ---------------------------------------------------------------------------
-// workflow_schedules — cron triggers for a workflow
-// ---------------------------------------------------------------------------
-export const workflowSchedules = pgTable(
-  "workflow_schedules",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    workflowId: uuid("workflow_id")
-      .notNull()
-      .references(() => workflows.id, { onDelete: "cascade" }),
-    schedule: text("schedule").notNull(), // cron expression
-    timezone: text("timezone").notNull().default("UTC"),
-    name: text("name"),
-    description: text("description"),
-    isActive: boolean("is_active").notNull().default(true),
-    lastRun: timestamp("last_run", { withTimezone: true }),
-    nextRun: timestamp("next_run", { withTimezone: true }),
-    // Run statistics, updated by the scheduler tick.
-    totalRuns: integer("total_runs").notNull().default(0),
-    successfulRuns: integer("successful_runs").notNull().default(0),
-    failedRuns: integer("failed_runs").notNull().default(0),
-    lastError: text("last_error"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => ({
-    workflowIdx: index("workflow_schedules_workflow_idx").on(t.workflowId),
-    activeIdx: index("workflow_schedules_active_idx").on(t.isActive),
-    nextRunIdx: index("workflow_schedules_next_run_idx").on(t.nextRun),
-  }),
-);
-
-// ---------------------------------------------------------------------------
-// workflow_executions — one run of a workflow
-// ---------------------------------------------------------------------------
-export const workflowExecutions = pgTable(
-  "workflow_executions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    workflowId: uuid("workflow_id")
-      .notNull()
-      .references(() => workflows.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    status: workflowExecutionStatusEnum("status").notNull().default("running"),
-    triggerType: workflowTriggerTypeEnum("trigger_type").notNull(),
-    startedAt: timestamp("started_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
-    duration: integer("duration"), // milliseconds
-    inputData: jsonb("input_data")
-      .$type<Record<string, unknown>>()
-      .notNull()
-      .default({}),
-    outputData: jsonb("output_data")
-      .$type<Record<string, unknown>>()
-      .notNull()
-      .default({}),
-    error: text("error"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => ({
-    workflowIdx: index("workflow_executions_workflow_idx").on(t.workflowId),
-    userIdx: index("workflow_executions_user_idx").on(t.userId),
-    statusIdx: index("workflow_executions_status_idx").on(t.status),
-    createdIdx: index("workflow_executions_created_idx").on(t.createdAt),
-  }),
-);
-
-// ---------------------------------------------------------------------------
-// execution_steps — per-node log for a single execution
-// ---------------------------------------------------------------------------
-export const executionSteps = pgTable(
-  "execution_steps",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    executionId: uuid("execution_id")
-      .notNull()
-      .references(() => workflowExecutions.id, { onDelete: "cascade" }),
-    stepIndex: integer("step_index").notNull(),
-    nodeId: text("node_id").notNull(), // UUID of the node in the workflow graph
-    nodeType: text("node_type").notNull(),
-    status: executionStepStatusEnum("status").notNull().default("pending"),
-    input: jsonb("input").$type<Record<string, unknown>>().notNull().default({}),
-    output: jsonb("output")
-      .$type<Record<string, unknown>>()
-      .notNull()
-      .default({}),
-    error: text("error"),
-    duration: integer("duration"), // milliseconds
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => ({
-    executionIdx: index("execution_steps_execution_idx").on(t.executionId),
-  }),
-);
-
-// ---------------------------------------------------------------------------
 // Relations
 // ---------------------------------------------------------------------------
 export const usersRelations = relations(users, ({ many }) => ({
@@ -587,55 +404,6 @@ export const approvalsRelations = relations(approvals, ({ one }) => ({
   user: one(users, { fields: [approvals.userId], references: [users.id] }),
 }));
 
-export const workflowsRelations = relations(workflows, ({ one, many }) => ({
-  user: one(users, { fields: [workflows.userId], references: [users.id] }),
-  versions: many(workflowVersions),
-  schedules: many(workflowSchedules),
-  executions: many(workflowExecutions),
-}));
-
-export const workflowVersionsRelations = relations(
-  workflowVersions,
-  ({ one }) => ({
-    workflow: one(workflows, {
-      fields: [workflowVersions.workflowId],
-      references: [workflows.id],
-    }),
-  }),
-);
-
-export const workflowSchedulesRelations = relations(
-  workflowSchedules,
-  ({ one }) => ({
-    workflow: one(workflows, {
-      fields: [workflowSchedules.workflowId],
-      references: [workflows.id],
-    }),
-  }),
-);
-
-export const workflowExecutionsRelations = relations(
-  workflowExecutions,
-  ({ one, many }) => ({
-    workflow: one(workflows, {
-      fields: [workflowExecutions.workflowId],
-      references: [workflows.id],
-    }),
-    user: one(users, {
-      fields: [workflowExecutions.userId],
-      references: [users.id],
-    }),
-    steps: many(executionSteps),
-  }),
-);
-
-export const executionStepsRelations = relations(executionSteps, ({ one }) => ({
-  execution: one(workflowExecutions, {
-    fields: [executionSteps.executionId],
-    references: [workflowExecutions.id],
-  }),
-}));
-
 // ---------------------------------------------------------------------------
 // Inferred types
 // ---------------------------------------------------------------------------
@@ -662,22 +430,3 @@ export type NewModelUsageRow = typeof modelUsage.$inferInsert;
 export type ToolName = (typeof toolEnum.enumValues)[number];
 export type ActionType = (typeof actionTypeEnum.enumValues)[number];
 export type ApprovalStatus = (typeof approvalStatusEnum.enumValues)[number];
-
-// Workflow row types (DB shape). Domain types live in lib/types/workflow.ts.
-export type WorkflowRow = typeof workflows.$inferSelect;
-export type NewWorkflow = typeof workflows.$inferInsert;
-export type WorkflowVersionRow = typeof workflowVersions.$inferSelect;
-export type NewWorkflowVersion = typeof workflowVersions.$inferInsert;
-export type WorkflowScheduleRow = typeof workflowSchedules.$inferSelect;
-export type NewWorkflowSchedule = typeof workflowSchedules.$inferInsert;
-export type WorkflowExecutionRow = typeof workflowExecutions.$inferSelect;
-export type NewWorkflowExecution = typeof workflowExecutions.$inferInsert;
-export type ExecutionStepRow = typeof executionSteps.$inferSelect;
-export type NewExecutionStep = typeof executionSteps.$inferInsert;
-
-export type WorkflowExecutionStatus =
-  (typeof workflowExecutionStatusEnum.enumValues)[number];
-export type WorkflowTriggerType =
-  (typeof workflowTriggerTypeEnum.enumValues)[number];
-export type ExecutionStepStatus =
-  (typeof executionStepStatusEnum.enumValues)[number];

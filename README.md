@@ -8,7 +8,7 @@
 
 ## Overview
 
-Relay is an autonomous AI assistant that plans multi-step workflows, chooses the right tools, passes information between them, and pauses before performing any action that could have real consequences.
+Relay is an autonomous AI assistant that plans multi-step requests, chooses the right tools, passes information between them, and pauses before performing any action that could have real consequences.
 
 Unlike demo agents, Relay executes against **real APIs** using **real AI models**. There are **no mocked tool calls or fake responses**.
 
@@ -220,6 +220,9 @@ Create an account, connect your tools, choose an AI model, and start chatting.
 
 ## Vercel
 
+Relay runs on demand through chat. It does not use scheduled jobs or require Vercel Cron.
+
+
 1. Import the repository
 2. Add all environment variables
 3. Use a pooled PostgreSQL database (recommended: Neon)
@@ -290,7 +293,7 @@ lib/
 # How Relay Works
 
 1. A user sends a request.
-2. The AI agent plans the workflow.
+2. The AI agent plans the steps.
 3. Only connected tools are made available.
 4. Read-only actions execute immediately.
 5. Write actions become approval requests.

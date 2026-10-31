@@ -6,13 +6,10 @@ import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import {
   ChevronsUpDown,
-  LayoutDashboard,
   LogOut,
   Moon,
-  Settings,
   Sun,
   User,
-  Workflow,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -105,18 +102,6 @@ export function ProfileMenu({
           <Link href="/settings">
             <User />
             Account
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/dashboard">
-            <LayoutDashboard />
-            Dashboard
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/workflows">
-            <Workflow />
-            Workflows
           </Link>
         </DropdownMenuItem>
 
